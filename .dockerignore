@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+secrets
+docs
+README.md
+CLAUDE.md
+AGENTS.md
+npm-debug.log*

@@ -1,0 +1,45 @@
+{
+  "name": "tongterwedding",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.28.1",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm typecheck && pnpm check:venue && pnpm check:logic && pnpm check:views && pnpm check:walk",
+    "sheet": "node --experimental-strip-types scripts/make-sheet.ts",
+    "push:sheet": "node --experimental-strip-types scripts/push-to-sheet.ts",
+    "check:views": "node --experimental-strip-types scripts/check-views.ts",
+    "check:sheets": "node --experimental-strip-types scripts/check-sheets.ts",
+    "check:walk": "node --experimental-strip-types scripts/check-walk.ts",
+    "check:logic": "node --experimental-strip-types scripts/check-logic.ts",
+    "check:venue": "node --experimental-strip-types scripts/check-venue.ts"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
+    "googleapis": "^173.0.0",
+    "next": "16.2.12",
+    "qrcode": "^1.5.4",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "server-only": "^0.0.1",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/three": "^0.185.1",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.12",
+    "exceljs": "^4.4.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
