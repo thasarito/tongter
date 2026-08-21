@@ -7,7 +7,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "pnpm vite build --mode test && pnpm preview --host 127.0.0.1 --port 4173",
+    command: "CLOUDFLARE_ENV=test pnpm build && pnpm preview --host 127.0.0.1 --port 4173",
     url: "http://127.0.0.1:4173/api/health",
     reuseExistingServer: false,
     timeout: 120_000,

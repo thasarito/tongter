@@ -11,5 +11,8 @@
   "routes": [
     { "pattern": "warissara.thasarito.com/*", "zone_name": "thasarito.com" }
   ],
+  "env": {
+    "test": {}
+  },
   "observability": { "enabled": true }
 }
