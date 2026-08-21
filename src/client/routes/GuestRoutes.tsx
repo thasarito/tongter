@@ -1,5 +1,6 @@
 import { useParams } from "react-router";
 import GuestJourney from "@/components/journey/GuestJourney";
+import SaveTheDatePage from "@/components/SaveTheDatePage";
 import SeatReveal from "@/components/SeatReveal";
 import { weddingApi } from "@/client/api/client";
 import { useLanguage } from "@/client/app/LanguageProvider";
@@ -19,10 +20,7 @@ function resourceView<T>(
 
 export function HomeRoute() {
   const { lang } = useLanguage();
-  const resource = useApiResource(`intro:${lang}`, () => weddingApi.intro(lang));
-  return resourceView(resource, lang, (intro) => (
-    <GuestJourney lang={lang} intro={intro} />
-  ));
+  return <SaveTheDatePage lang={lang} />;
 }
 
 export function PersonalInviteRoute() {
