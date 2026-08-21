@@ -1,0 +1,121 @@
+import { buildMockDataset } from "@/shared/mock-dataset";
+import type { Snapshot } from "@/shared/types";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createApp } from "../app";
+import type { SnapshotRepository } from "../services/snapshot";
+
+const dataset = buildMockDataset({ readableTokens: true });
+const snapshot: Snapshot = {
+  status: "ok",
+  ...dataset,
+  fetchedAt: 1_700_000_000_000,
+  warnings: [],
+};
+
+describe("public API", () => {
+  let repository: SnapshotRepository;
+
+  beforeEach(() => {
+    repository = {
+      getSnapshot: vi.fn(async () => snapshot),
+      invalidate: vi.fn(),
+      appendRsvp: vi.fn(async () => undefined),
+    };
+  });
+
+  function app() {
+    return createApp({ repositoryFor: () => repository, now: () => 1_700_000_000_000 });
+  }
+
+  it("returns the home journey without group tokens", async () => {
+    const response = await app().request("/api/journey?lang=en");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.guests.length).toBe(snapshot.guests.length);
+    expect(JSON.stringify(body)).not.toContain("demo001");
+  });
+
+  it("searches safely and enforces the minimum query length", async () => {
+    const short = await app().request("/api/search?q=V&lang=en");
+    expect(await short.json()).toMatchObject({ state: "too-short", results: [] });
+
+    const response = await app().request("/api/search?q=View&lang=en");
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.state).toBe("results");
+    expect(body.results[0]).toEqual(
+      expect.objectContaining({ name: "View", href: "/rsvp/demo001" }),
+    );
+    expect(body.results[0]).not.toHaveProperty("token");
+  });
+
+  it("loads personal and group invitation bootstrap data", async () => {
+    const personal = await app().request("/api/journey/me001?lang=en");
+    expect(personal.status).toBe(200);
+    expect(await personal.json()).toMatchObject({
+      flow: { selfGuestId: "g01-01", view: { kind: "form" } },
+    });
+
+    const group = await app().request("/api/rsvp/demo001?lang=en");
+    expect(group.status).toBe(200);
+    const groupBody = await group.json();
+    expect(groupBody.view.kind).toBe("form");
+    expect(groupBody.choices[0]).toEqual({ guestId: "g01-01", name: "View" });
+  });
+
+  it("uses the same not-found envelope for unknown invitation tokens", async () => {
+    for (const path of ["/api/journey/nope", "/api/rsvp/nope", "/api/seat/nope"]) {
+      const response = await app().request(path);
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({
+        error: { code: "NOT_FOUND", message: "Invitation not found." },
+      });
+    }
+  });
+
+  it("submits only members of the token's group", async () => {
+    const response = await app().request("/api/rsvp/demo001", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        submittedBy: "g01-01",
+        lang: "en",
+        answers: [
+          { guestId: "g01-01", attending: true, dietary: ["halal"], dietaryOther: "", note: "Hi" },
+          { guestId: "g10-01", attending: true, dietary: [], dietaryOther: "", note: "foreign" },
+        ],
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({
+      ok: true,
+      seatHref: "/seat/demo001?celebrate=1&guest=g01-01",
+    });
+    expect(repository.appendRsvp).toHaveBeenCalledWith({
+      groupId: "grp-001",
+      submittedBy: "g01-01",
+      lang: "en",
+      entries: [{ guestId: "g01-01", attending: true, dietary: "halal", note: "Hi" }],
+    });
+  });
+
+  it("returns a retryable error when the append fails", async () => {
+    repository.appendRsvp = vi.fn(async () => { throw new Error("secret failure"); });
+    const response = await app().request("/api/rsvp/demo001", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        submittedBy: "g01-01",
+        lang: "en",
+        answers: [{ guestId: "g01-01", attending: false, dietary: [], dietaryOther: "", note: "" }],
+      }),
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: { code: "RSVP_WRITE_FAILED", message: "Please try again." },
+    });
+  });
+});
