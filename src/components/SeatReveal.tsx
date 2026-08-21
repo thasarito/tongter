@@ -1,8 +1,7 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { Link } from "react-router";
+import { lazy, Suspense, useMemo, useState, useSyncExternalStore } from "react";
 import SeatMap2D from "./SeatMap2D";
 import StatusNotice from "./StatusNotice";
 import { t, type Lang } from "@/shared/i18n";
@@ -10,10 +9,7 @@ import type { SeatView } from "@/shared/views";
 
 // three.js is ~600 kB — keep it out of the initial bundle and off the critical
 // path for guests who only ever open the invitation.
-const Walkthrough = dynamic(() => import("./venue3d/Walkthrough"), {
-  ssr: false,
-  loading: () => <div className="h-full w-full animate-pulse bg-cream" />,
-});
+const Walkthrough = lazy(() => import("./venue3d/Walkthrough"));
 
 export interface SeatRevealProps {
   view: SeatView;
@@ -108,13 +104,15 @@ export default function SeatReveal({ view, lang, debug = false }: SeatRevealProp
       <div className="relative h-dvh w-full overflow-hidden bg-cream">
         <div className="absolute inset-0">
           {show3D ? (
-            <Walkthrough
-              highlight={highlight}
-              animate={animate}
-              replayKey={replayKey}
-              debug={debug}
-              onArrive={() => setArrivedKey(replayKey)}
-            />
+            <Suspense fallback={<div className="h-full w-full animate-pulse bg-cream" />}>
+              <Walkthrough
+                highlight={highlight}
+                animate={animate}
+                replayKey={replayKey}
+                debug={debug}
+                onArrive={() => setArrivedKey(replayKey)}
+              />
+            </Suspense>
           ) : (
             // No WebGL, or nobody in the group is attending — the plan view
             // still answers "where do I sit?".
@@ -249,7 +247,7 @@ export default function SeatReveal({ view, lang, debug = false }: SeatRevealProp
 
         <div className="mt-8 text-center">
           <Link
-            href={`/rsvp/${token}`}
+            to={`/rsvp/${token}`}
             className="text-sm text-rose underline underline-offset-4 hover:text-ink"
           >
             {copy.rsvp.title}

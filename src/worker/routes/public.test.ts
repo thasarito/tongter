@@ -64,6 +64,19 @@ describe("public API", () => {
     expect(groupBody.choices[0]).toEqual({ guestId: "g01-01", name: "View" });
   });
 
+  it("resolves a name-picker guest without exposing group tokens in the intro", async () => {
+    const response = await app().request("/api/journey/person", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ guestId: "g01-01", lang: "en" }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      selfGuestId: "g01-01",
+      view: { kind: "form", token: "demo001" },
+    });
+  });
+
   it("uses the same not-found envelope for unknown invitation tokens", async () => {
     for (const path of ["/api/journey/nope", "/api/rsvp/nope", "/api/seat/nope"]) {
       const response = await app().request(path);

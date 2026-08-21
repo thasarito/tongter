@@ -2,3 +2,4 @@ GOOGLE_SHEET_ID=spreadsheet-id
 GOOGLE_CREDENTIALS_JSON={"client_email":"service-account@example.iam.gserviceaccount.com","private_key":"PEM value","token_uri":"https://oauth2.googleapis.com/token"}
 ADMIN_PASSPHRASE=local-only-passphrase
 ADMIN_SESSION_SECRET=at-least-32-random-characters
+MOCK_SHEET=1

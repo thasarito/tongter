@@ -1,5 +1,5 @@
 import { t, type Lang } from "@/shared/i18n";
-import type { SnapshotStatus } from "@/lib/sheets";
+import type { SnapshotStatus } from "@/shared/types";
 
 /**
  * Shown when the guest list cannot be trusted: either the sheet was never

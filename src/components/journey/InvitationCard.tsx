@@ -1,7 +1,7 @@
 "use client";
 
 import Countdown from "@/components/Countdown";
-import { event } from "@/lib/config";
+import { event } from "@/shared/event-config";
 import { formatEventDate, formatEventTime, pick, t, type Lang } from "@/shared/i18n";
 
 /**

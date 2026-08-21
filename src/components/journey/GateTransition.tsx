@@ -1,6 +1,6 @@
 "use client";
 
-import { event } from "@/lib/config";
+import { event } from "@/shared/event-config";
 import { pick, type Lang } from "@/shared/i18n";
 
 /**

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router";
 import { useEffect, useRef, useState } from "react";
 import { t, type Lang } from "@/shared/i18n";
 
@@ -19,7 +19,7 @@ export default function GuestSearch({
   initialQuery: string;
 }) {
   const copy = t(lang).search;
-  const router = useRouter();
+  const navigate = useNavigate();
   const [value, setValue] = useState(initialQuery);
   // Skips the first effect run so landing on /rsvp?q=... does not immediately
   // replace the URL it was just given.
@@ -32,12 +32,12 @@ export default function GuestSearch({
     }
     const id = setTimeout(() => {
       const query = value.trim();
-      router.replace(query ? `/rsvp?q=${encodeURIComponent(query)}` : "/rsvp", {
-        scroll: false,
+      navigate(query ? `/rsvp?q=${encodeURIComponent(query)}` : "/rsvp", {
+        replace: true,
       });
     }, 300);
     return () => clearTimeout(id);
-  }, [value, router]);
+  }, [value, navigate]);
 
   return (
     <form action="/rsvp" method="get" className="mt-8">

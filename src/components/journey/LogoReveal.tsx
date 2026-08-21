@@ -1,8 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
-import { event } from "@/lib/config";
+import { event } from "@/shared/event-config";
 import { formatEventDate, pick, type Lang } from "@/shared/i18n";
 
 /**
@@ -52,12 +51,11 @@ export default function LogoReveal({
         }`}
       >
         {!useFallback ? (
-          <Image
+          <img
             src={LOGO_SRC}
             alt={`${bride} & ${groom}`}
-            width={260}
-            height={260}
-            priority
+            width="260"
+            height="260"
             onError={() => setUseFallback(true)}
             className="h-auto w-52 sm:w-64"
           />

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "react-router";
 import StatusNotice from "./StatusNotice";
 import { t, type Lang } from "@/shared/i18n";
 import type { SnapshotStatus } from "@/shared/types";
@@ -19,7 +19,7 @@ export default function NotFoundCard({
       <h1 className="font-display text-3xl text-ink">{copy.notFoundTitle}</h1>
       <p className="mt-3 text-sm leading-relaxed text-muted">{copy.notFoundBody}</p>
       <Link
-        href="/rsvp"
+        to="/rsvp"
         className="mt-8 inline-block rounded-full bg-ink px-8 py-3 text-sm text-cream transition hover:bg-gold"
       >
         {copy.searchInstead}

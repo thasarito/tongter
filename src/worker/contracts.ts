@@ -27,6 +27,11 @@ export const rsvpSubmissionSchema = z.object({
     .min(1),
 });
 
+export const personFlowSchema = z.object({
+  guestId: z.string().min(1).max(200),
+  lang: z.enum(["th", "en"]),
+});
+
 export const apiError = <Code extends string>(code: Code, message: string) => ({
   error: { code, message },
 });

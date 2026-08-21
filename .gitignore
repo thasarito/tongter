@@ -12,10 +12,11 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
 
-# next.js
+# obsolete local Next build output
 /.next/
-/out/
 
 # production
 /build
@@ -42,13 +43,13 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 /out
 
 # Cloudflare local state and local Worker secrets
 /.wrangler/
 .dev.vars*
 !.dev.vars.example
+!.dev.vars.test
 
 # Vite output
 /dist/

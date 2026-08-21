@@ -1,16 +1,16 @@
 "use client";
 
 import {
-  useActionState,
   useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
   useTransition,
+  type FormEvent,
 } from "react";
-import { useRouter } from "next/navigation";
-import { loadPersonFlow, type PersonFlow } from "@/app/_actions/journey";
-import { submitRsvp, type RsvpFormState } from "@/app/_actions/submit-rsvp";
+import { useNavigate } from "react-router";
+import { weddingApi, type PersonFlow } from "@/client/api/client";
+import { rsvpPayloadFromForm } from "@/client/api/rsvp";
 import {
   forgetGuest,
   getIdentityServerSnapshot,
@@ -67,7 +67,7 @@ export default function GuestJourney({
   groupChoices,
 }: GuestJourneyProps) {
   const copy = t(lang);
-  const router = useRouter();
+  const navigate = useNavigate();
 
   // A personal link skips straight to the RSVP; a group link starts at its own
   // short name list; otherwise the full ceremony.
@@ -89,9 +89,8 @@ export default function GuestJourney({
   // An arriving invite link supersedes whatever the device remembered.
   const remembered = initialFlow || groupChoices ? null : stored;
 
-  const [submitState, formAction, submitting] = useActionState<RsvpFormState, FormData>(
-    submitRsvp,
-    { status: "idle" },
+  const [submitState, setSubmitState] = useState<"idle" | "submitting" | "error">(
+    "idle",
   );
 
   /*
@@ -102,7 +101,7 @@ export default function GuestJourney({
    * with an error instead, it flips false and the doors reopen on the form. No
    * separate state, and no way for the two to disagree.
    */
-  const closing = submitting;
+  const closing = submitState === "submitting";
 
   // A personal link is the one moment we learn exactly who this device is.
   useEffect(() => {
@@ -116,17 +115,37 @@ export default function GuestJourney({
   const pickGuest = (guestId: string) => {
     setLoadError(false);
     startTransition(async () => {
-      const next = await loadPersonFlow(guestId, lang);
-      if (!next) {
+      try {
+        const next = await weddingApi.person(guestId, lang);
+        const self = next.view.guests.find((g) => g.guestId === next.selfGuestId);
+        if (self) rememberGuest(self.guestId, self.name);
+        setFlow(next);
+        setIndex(0);
+        setStage("rsvp");
+      } catch {
         setLoadError(true);
-        return;
       }
-      const self = next.view.guests.find((g) => g.guestId === next.selfGuestId);
-      if (self) rememberGuest(self.guestId, self.name);
-      setFlow(next);
-      setIndex(0);
-      setStage("rsvp");
     });
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!flow) return;
+    setSubmitState("submitting");
+    try {
+      const result = await weddingApi.submitRsvp(
+        flow.view.token,
+        rsvpPayloadFromForm(
+          flow.view,
+          flow.selfGuestId,
+          lang,
+          new FormData(event.currentTarget),
+        ),
+      );
+      navigate(result.seatHref);
+    } catch {
+      setSubmitState("error");
+    }
   };
 
   /** The chosen guest first, then the rest of their group. */
@@ -211,7 +230,7 @@ export default function GuestJourney({
 
     return (
       <div className="min-h-dvh bg-cream px-6 py-12">
-        <form action={formAction} className="mx-auto w-full max-w-md">
+        <form onSubmit={handleSubmit} className="mx-auto w-full max-w-md">
           <input
             type="hidden"
             name={flow.view.fieldNames.token}
@@ -221,7 +240,7 @@ export default function GuestJourney({
           <input
             type="hidden"
             name={flow.view.fieldNames.submittedBy}
-            value={ordered[0]?.name ?? ""}
+            value={flow.selfGuestId}
           />
 
           {/*
@@ -242,13 +261,13 @@ export default function GuestJourney({
             />
           ))}
 
-          {submitState.status === "error" && submitState.errorKey && (
+          {submitState === "error" && (
             <div
               role="alert"
               className="mt-6 rounded-xl border border-blush-deep/40 bg-blush-soft px-5 py-4 text-sm"
             >
               <p className="font-medium text-ink">{copy.rsvp.errorTitle}</p>
-              <p className="mt-1 text-muted">{copy.rsvp[submitState.errorKey]}</p>
+              <p className="mt-1 text-muted">{copy.rsvp.errorBody}</p>
             </div>
           )}
 
@@ -269,6 +288,7 @@ export default function GuestJourney({
             */}
             <button
               type="submit"
+              disabled={closing}
               className="w-full rounded-full bg-rose px-8 py-3.5 text-sm tracking-wide text-white transition hover:bg-rose-deep"
             >
               {isLast ? copy.rsvp.submit : copy.journey.finishHere}
@@ -294,7 +314,7 @@ export default function GuestJourney({
               setFlow(null);
               setSide(null);
               setStage("side");
-              router.replace("/");
+              navigate("/", { replace: true });
             }}
             className="text-xs text-muted underline underline-offset-4 transition hover:text-ink"
           >

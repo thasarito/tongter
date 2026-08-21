@@ -1,8 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useTransition } from "react";
-import { setLang } from "@/app/_actions/set-lang";
+import { useLanguage } from "@/client/app/LanguageProvider";
 import { t, type Lang } from "@/shared/i18n";
 
 /**
@@ -10,21 +8,13 @@ import { t, type Lang } from "@/shared/i18n";
  * server-rendered string flips at once — no client-side translation state.
  */
 export default function LangToggle({ lang }: { lang: Lang }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [pending, startTransition] = useTransition();
+  const { setLang } = useLanguage();
   const next: Lang = lang === "th" ? "en" : "th";
 
   return (
     <button
       type="button"
-      disabled={pending}
-      onClick={() =>
-        startTransition(async () => {
-          await setLang(next, pathname);
-          router.refresh();
-        })
-      }
+      onClick={() => setLang(next)}
       className="rounded-full border border-line px-3 py-1 text-xs tracking-wide text-muted transition hover:border-gold hover:text-ink disabled:opacity-50"
       aria-label={`Switch language to ${next === "th" ? "Thai" : "English"}`}
     >

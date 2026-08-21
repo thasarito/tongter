@@ -15,7 +15,7 @@ import {
 import { allowDietaryOther, dietaryOptions } from "@/shared/event-config";
 import { Hono } from "hono";
 import type { AppDependencies } from "../dependencies";
-import { apiError, rsvpSubmissionSchema } from "../contracts";
+import { apiError, personFlowSchema, rsvpSubmissionSchema } from "../contracts";
 import type { WorkerBindings } from "../env";
 
 const notFound = () => apiError("NOT_FOUND", "Invitation not found.");
@@ -33,6 +33,29 @@ export function publicRoutes(deps: AppDependencies) {
     .get("/journey", async (c) => {
       const snapshot = await deps.repositoryFor(c.env).getSnapshot();
       return c.json(buildJourneyIntroView(snapshot, language(c.req.query("lang"))), 200);
+    })
+    .post("/journey/person", async (c) => {
+      const parsed = personFlowSchema.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success) {
+        return c.json(apiError("INVALID_PERSON", "Please choose a guest."), 400);
+      }
+      const snapshot = await deps.repositoryFor(c.env).getSnapshot();
+      const guest = snapshot.guests.find(
+        (candidate) => candidate.guestId === parsed.data.guestId,
+      );
+      const group = guest
+        ? snapshot.groups.find((candidate) => candidate.groupId === guest.groupId)
+        : undefined;
+      const view = group?.token
+        ? buildRsvpView(snapshot, group.token, {
+            lang: parsed.data.lang,
+            dietaryOptions,
+            allowDietaryOther,
+          })
+        : null;
+      return guest && view?.kind === "form"
+        ? c.json({ view, selfGuestId: guest.guestId }, 200)
+        : c.json(notFound(), 404);
     })
     .get("/search", async (c) => {
       const snapshot = await deps.repositoryFor(c.env).getSnapshot();
