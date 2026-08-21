@@ -14,6 +14,8 @@ The preview job uses the existing `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT
 
 After upload, the workflow extracts Wrangler's preview URL and creates or updates one bot-authored pull-request comment. Updating a stable comment avoids adding a new comment for every push while keeping the current preview easy to find.
 
+The Worker enables `global_fetch_strictly_public` because Cloudflare's static-assets router invokes the API Worker across the same zone on a preview hostname; without that compatibility behavior, dynamic preview routes fail with Cloudflare error 1042. The workflow requests both the homepage and `/api/health` before publishing the alias URL, so an assets-only or broken Worker preview fails CI instead of being advertised.
+
 ## Failure Handling
 
 Missing Cloudflare credentials, a failed build, a failed version upload, or a missing preview URL fails the preview job visibly. The production deployment remains unaffected. Verification still runs for forked pull requests even though their preview job is skipped.
