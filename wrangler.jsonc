@@ -9,7 +9,7 @@
     "run_worker_first": ["/api/*"]
   },
   "routes": [
-    { "pattern": "warissara.thasarito.com", "custom_domain": true }
+    { "pattern": "warissara.thasarito.com/*", "zone_name": "thasarito.com" }
   ],
   "observability": { "enabled": true }
 }

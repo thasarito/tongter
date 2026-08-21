@@ -78,9 +78,9 @@ pnpm wrangler login
 pnpm deploy:cloudflare
 ```
 
-`wrangler.jsonc` publishes the Worker on the custom domain
-`warissara.thasarito.com`. Cloudflare creates and manages the DNS record and
-certificate for that Worker custom domain.
+`wrangler.jsonc` binds the Worker to `warissara.thasarito.com/*`. The hostname's
+existing proxied Cloudflare DNS record supplies edge routing and TLS; the Worker
+route intercepts requests before they reach the former origin.
 
 GitHub Actions can deploy `main` when the repository has these secrets:
 
