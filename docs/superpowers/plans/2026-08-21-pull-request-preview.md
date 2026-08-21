@@ -88,6 +88,18 @@ preview:
         cache: pnpm
     - run: pnpm install --frozen-lockfile
     - run: pnpm build
+    - name: Enable Cloudflare preview URLs
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      run: |
+        curl --silent --show-error --fail-with-body \
+          --request POST \
+          --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+          --header "Content-Type: application/json" \
+          --data '{"enabled":false,"previews_enabled":true}' \
+          "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/warissara-wedding/subdomain" \
+          --output /dev/null
     - name: Upload Cloudflare preview
       id: preview
       uses: cloudflare/wrangler-action@v3

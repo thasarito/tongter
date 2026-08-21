@@ -8,7 +8,7 @@ Publish a public Cloudflare Workers preview for each pull request without changi
 
 The existing verification job remains the required first stage for pushes and pull requests. After verification succeeds on a same-repository pull request, a new preview job builds the application and runs `wrangler versions upload` with the alias `pr-<number>`. Uploading a version creates a preview without shifting production traffic.
 
-The Wrangler configuration explicitly enables preview URLs because the production Worker uses a custom route, which otherwise causes preview URLs to default to disabled. The existing production deploy job remains restricted to non-pull-request events and continues to deploy only after verification.
+The Wrangler configuration explicitly enables preview URLs because the production Worker uses a custom route, which otherwise causes preview URLs to default to disabled. Because `wrangler versions upload` does not apply this service-level setting, the preview job also enables previews through Cloudflare's Worker subdomain API while keeping the public `workers.dev` production endpoint disabled. The existing production deploy job remains restricted to non-pull-request events and continues to deploy only after verification.
 
 The preview job uses the existing `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository secrets. Pull requests from forks do not receive those secrets, so the job is limited to branches in `thasarito/tongter`.
 
