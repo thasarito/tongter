@@ -46,6 +46,7 @@ export { GROUP_HEADERS, GUEST_HEADERS, RSVP_HEADERS, SHEET_TABS } from "./types"
 export {
   displayName,
   findGroupByToken,
+  findGuestByToken,
   guestsInGroup,
   latestRsvpByGuest,
   parseAttending,
@@ -90,6 +91,8 @@ function parseSide(raw: string): Side | null {
 function parseGuests(records: Record<string, string>[], warnings: string[]): Guest[] {
   const seen = new Set<string>();
   const seatTaken = new Map<string, string>();
+  // A shared personal token would open one guest's card for another.
+  const tokenOwner = new Map<string, string>();
 
   return records.flatMap((r, i) => {
     const rowNo = i + 2; // +1 for the header, +1 for 1-based rows
@@ -136,6 +139,18 @@ function parseGuests(records: Record<string, string>[], warnings: string[]): Gue
       warnings.push(`Guests row ${rowNo} ("${nameTh || nameEn}"): missing group_id`);
     }
 
+    const token = (r.token ?? "").trim();
+    if (token) {
+      const owner = tokenOwner.get(token);
+      if (owner) {
+        warnings.push(
+          `Guests row ${rowNo}: personal token for "${nameTh || nameEn}" is identical to "${owner}" — regenerate it`,
+        );
+      } else {
+        tokenOwner.set(token, nameTh || nameEn || guestId);
+      }
+    }
+
     return [
       {
         guestId,
@@ -146,6 +161,7 @@ function parseGuests(records: Record<string, string>[], warnings: string[]): Gue
         seatIndex,
         side: parseSide(r.side ?? ""),
         tags: (r.tags ?? "").split(",").map((t) => t.trim()).filter(Boolean),
+        token,
       },
     ];
   });
@@ -406,8 +422,13 @@ export interface RsvpSubmission {
   groupId: string;
   submittedBy: string;
   lang: string;
-  message: string;
-  entries: { guestId: string; attending: boolean; dietary: string }[];
+  /** Notes are per person; the sheet's message column is already per row. */
+  entries: {
+    guestId: string;
+    attending: boolean;
+    dietary: string;
+    note: string;
+  }[];
 }
 
 // Serialises appends. Sheets has no transactions, so two overlapping
@@ -424,7 +445,7 @@ export async function appendRsvp(submission: RsvpSubmission): Promise<void> {
         guestId: entry.guestId,
         attending: entry.attending,
         dietary: entry.dietary,
-        message: submission.message,
+        message: entry.note,
         submittedBy: submission.submittedBy,
         lang: submission.lang,
       })),
@@ -447,7 +468,7 @@ export async function appendRsvp(submission: RsvpSubmission): Promise<void> {
       entry.guestId,
       entry.attending ? "yes" : "no",
       entry.dietary,
-      submission.message,
+      entry.note,
       submission.submittedBy,
       submission.lang,
     ]);

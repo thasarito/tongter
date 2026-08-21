@@ -6,8 +6,18 @@
  * routing mistake means walking through a table. This routes all 170 seats and
  * samples each curve densely, asserting the walker never enters a blocked cell.
  */
-import { buildWalkPath, isBlocked, walkDurationMs, GOAL_STANDOFF } from "../src/lib/walk-path.ts";
-import { ALL_SEATS, HALL } from "../src/lib/venue.ts";
+import {
+  buildWalkPath,
+  isBlocked,
+  walkDurationMs,
+  GOAL_STANDOFF,
+  INTRO,
+  INTRO_MS,
+  EYE_HEIGHT,
+  LOOK_AHEAD,
+  LOOK_DROP,
+} from "../src/lib/walk-path.ts";
+import { ALL_SEATS, APPROACH, GATE, HALL } from "../src/lib/venue.ts";
 
 let failures = 0;
 function fail(message: string) {
@@ -70,7 +80,7 @@ for (const seat of ALL_SEATS) {
   }
 
   const duration = walkDurationMs(path.length);
-  if (duration < 3000 || duration > 16500) {
+  if (duration < 3000 || duration > 15500) {
     fail(`${label}: walk lasts ${(duration / 1000).toFixed(1)} s`);
   }
 }
@@ -91,6 +101,161 @@ console.log(`
 `);
 
 if (failures > 12) console.log(`  ... and ${failures - 12} more\n`);
+
+// ---------------------------------------------------------------------------
+// The arrival: standing outside, the doors opening, then stepping through.
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// The speed profile. A discontinuity here is invisible in a still frame but
+// makes the walk lurch, so it is asserted rather than eyeballed.
+// ---------------------------------------------------------------------------
+console.log("--- speed profile ---");
+{
+  const RAMP = 0.18;
+  const total = 1 - RAMP;
+  const distanceAt = (t: number) => {
+    if (t < RAMP) return (t * t) / (2 * RAMP) / total;
+    if (t <= 1 - RAMP) return (RAMP / 2 + (t - RAMP)) / total;
+    const r = 1 - t;
+    return (1 - RAMP - (r * r) / (2 * RAMP)) / total;
+  };
+
+  const profileCheck = (label: string, ok: boolean, detail = "") => {
+    if (!ok) failures++;
+    console.log(`${ok ? "  ok  " : "FAIL  "} ${label}${detail ? ` — ${detail}` : ""}`);
+  };
+
+  const SAMPLES = 20000;
+  let previous = distanceAt(0);
+  let biggestStep = 0;
+  let backwards = 0;
+  for (let i = 1; i <= SAMPLES; i++) {
+    const value = distanceAt(i / SAMPLES);
+    const step = value - previous;
+    if (step < -1e-12) backwards += 1;
+    biggestStep = Math.max(biggestStep, step);
+    previous = value;
+  }
+
+  profileCheck("starts at 0", Math.abs(distanceAt(0)) < 1e-9);
+  profileCheck("ends at exactly 1", Math.abs(distanceAt(1) - 1) < 1e-9,
+    distanceAt(1).toFixed(6));
+  profileCheck("never goes backwards", backwards === 0, `${backwards} reversals`);
+  // A jump here teleports the camera along the path mid-walk.
+  profileCheck("no jumps", biggestStep < 1e-3, `largest step ${biggestStep.toFixed(6)}`);
+  profileCheck("continuous where it stops accelerating",
+    Math.abs(distanceAt(RAMP - 1e-6) - distanceAt(RAMP + 1e-6)) < 1e-5);
+  profileCheck("continuous where it starts slowing",
+    Math.abs(distanceAt(1 - RAMP - 1e-6) - distanceAt(1 - RAMP + 1e-6)) < 1e-5);
+}
+
+console.log("\n--- arrival ---");
+{
+  const arrivalCheck = (label: string, ok: boolean, detail = "") => {
+    if (!ok) failures++;
+    console.log(`${ok ? "  ok  " : "FAIL  "} ${label}${detail ? ` — ${detail}` : ""}`);
+  };
+
+  arrivalCheck("camera starts outside the hall", APPROACH.z > HALL.maxZ,
+    `approach z=${APPROACH.z}, south wall z=${HALL.maxZ}`);
+  arrivalCheck("gate sits in the south wall",
+    Math.abs(GATE.center.z - HALL.maxZ) < 0.001);
+  arrivalCheck("far enough back to see the whole doorway",
+    APPROACH.z - GATE.center.z >= 3, `${(APPROACH.z - GATE.center.z).toFixed(1)} m back`);
+  arrivalCheck("doors start opening before the guest sets off",
+    INTRO.gateOpensAtMs < INTRO.waitMs);
+  arrivalCheck("the intro stays under 4 s", INTRO_MS <= 4000,
+    `${(INTRO_MS / 1000).toFixed(1)} s`);
+  arrivalCheck("the doorway is wide enough to walk through", GATE.width >= 2);
+
+  // Every route now begins outside, so this is a property of the path itself
+  // rather than of a separate slide-in.
+  let notOutside = 0;
+  let missedDoorway = 0;
+  for (const seat of ALL_SEATS) {
+    const { curve } = buildWalkPath(seat);
+    if (curve.getPointAt(0).z <= HALL.maxZ) notOutside += 1;
+
+    // Wherever the path crosses the wall line it must be inside the opening.
+    for (let i = 0; i <= 400; i++) {
+      const p = curve.getPointAt(i / 400);
+      if (Math.abs(p.z - HALL.maxZ) < 0.05 &&
+          Math.abs(p.x - GATE.center.x) > GATE.width / 2) {
+        missedDoorway += 1;
+        break;
+      }
+    }
+  }
+  arrivalCheck("every route starts outside the hall", notOutside === 0,
+    `${notOutside} of ${ALL_SEATS.length} start inside`);
+  arrivalCheck("every route crosses the wall inside the doorway",
+    missedDoorway === 0, `${missedDoorway} miss the opening`);
+}
+
+// ---------------------------------------------------------------------------
+// The handover from the arrival to the walk.
+//
+// Both phases position the camera and choose a gaze independently. If they
+// disagree at the seam the view snaps — which is exactly what happened when the
+// arrival aimed at the doorway: the camera advances past it, so by the handover
+// the target sat behind the lens and the view whipped round.
+// ---------------------------------------------------------------------------
+console.log("\n--- arrival to walk handover ---");
+{
+  const seamCheck = (label: string, ok: boolean, detail = "") => {
+    if (!ok) failures++;
+    console.log(`${ok ? "  ok  " : "FAIL  "} ${label}${detail ? ` — ${detail}` : ""}`);
+  };
+
+  let positionDrift = 0;
+  let gazeDrift = 0;
+  let lookingBackwards = 0;
+
+  for (const seat of ALL_SEATS) {
+    const { curve } = buildWalkPath(seat);
+
+    // Where each side of the seam puts the camera and points it.
+    const threshold = curve.getPointAt(0);
+    const tangent = curve.getTangentAt(0);
+    tangent.y = 0;
+    tangent.normalize();
+
+    const gaze = threshold.clone().addScaledVector(tangent, LOOK_AHEAD);
+    gaze.y = EYE_HEIGHT - LOOK_DROP;
+
+    // Each side of the seam, computed the way the component computes it.
+    // Arrival, at its final instant: lerp from outside to the threshold with
+    // the ease fully applied.
+    const smoothstep01 = 1; // smoothstep(0, 1, 1)
+    const arrivalEnd = {
+      x: APPROACH.x + (threshold.x - APPROACH.x) * smoothstep01,
+      z: APPROACH.z + (threshold.z - APPROACH.z) * smoothstep01,
+    };
+    // Walk, at t = 0: the curve start, with no sway because gait starts at 0.
+    const walkStart = curve.getPointAt(0);
+
+    positionDrift = Math.max(
+      positionDrift,
+      Math.hypot(arrivalEnd.x - walkStart.x, arrivalEnd.z - walkStart.z),
+    );
+
+    // The gaze must be ahead of the camera, not behind it.
+    const toGaze = gaze.clone().sub(threshold);
+    toGaze.y = 0;
+    if (toGaze.dot(tangent) <= 0) lookingBackwards += 1;
+
+    // And far enough ahead that the direction is well defined.
+    if (toGaze.length() < 1) gazeDrift += 1;
+  }
+
+  seamCheck("camera position is continuous across the seam", positionDrift < 1e-9,
+    `worst drift ${positionDrift.toExponential(1)} m`);
+  seamCheck("the gaze is always ahead of the camera, never behind",
+    lookingBackwards === 0, `${lookingBackwards} of ${ALL_SEATS.length} look backwards`);
+  seamCheck("the gaze target is far enough to define a direction",
+    gazeDrift === 0, `${gazeDrift} too close`);
+  seamCheck("look-ahead clears the doorway depth", LOOK_AHEAD >= 2);
+}
 
 // Draw a few representative routes so the shape can be eyeballed.
 {

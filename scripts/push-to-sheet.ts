@@ -11,6 +11,7 @@
  * --force is passed. The RSVP tab is never overwritten without --force, because
  * that is where real guest responses accumulate.
  */
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { google } from "googleapis";
 import { loadEnv, resolveCredentials } from "./script-env.ts";
@@ -22,6 +23,27 @@ import {
   RSVP_HEADERS,
   SHEET_TABS,
 } from "../src/lib/types.ts";
+
+const TOKEN_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
+const usedTokens = new Set<string>();
+function newToken(length = 10): string {
+  for (;;) {
+    const bytes = randomBytes(length);
+    let out = "";
+    for (const b of bytes) out += TOKEN_ALPHABET[b % TOKEN_ALPHABET.length];
+    if (!usedTokens.has(out)) {
+      usedTokens.add(out);
+      return out;
+    }
+  }
+}
+
+const personalTokens: Record<number, string> = {};
+for (const table of TABLES) {
+  seatsForTable(table.id).forEach((_, i) => {
+    personalTokens[table.id * 100 + i] = newToken();
+  });
+}
 
 const args = process.argv.slice(2);
 const useDemo = args.includes("--demo");
@@ -62,12 +84,15 @@ const dataset = buildMockDataset();
 const guestRows = useDemo
   ? dataset.guests.map((g) => [
       g.guestId, g.nameTh, g.nameEn, g.groupId,
-      g.tableId, g.seatIndex, g.side ?? "", g.tags.join(","),
+      g.tableId, g.seatIndex, g.side ?? "", g.tags.join(","), g.token,
     ])
   : TABLES.flatMap((table) =>
-      seatsForTable(table.id).map((seat) => [
+      seatsForTable(table.id).map((seat, i) => [
         `g${String(table.id).padStart(2, "0")}-${String(seat.seatIndex).padStart(2, "0")}`,
         "", "", "", table.id, seat.seatIndex, "", "",
+        // Personal invite token, pre-generated so the blank sheet is ready for
+        // per-guest QR codes without another pass.
+        personalTokens[table.id * 100 + i],
       ]),
     );
 
@@ -178,7 +203,7 @@ const idOf = (title: string) =>
     ?.properties?.sheetId;
 
 const widths: Record<string, number[]> = {
-  [SHEET_TABS.guests]: [110, 150, 130, 110, 90, 110, 90, 120],
+  [SHEET_TABS.guests]: [110, 150, 130, 110, 90, 110, 90, 120, 130],
   [SHEET_TABS.groups]: [110, 200, 200, 130],
   [SHEET_TABS.rsvp]: [200, 110, 110, 90, 180, 300, 140, 70],
 };

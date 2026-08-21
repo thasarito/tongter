@@ -1,12 +1,19 @@
 @import "tailwindcss";
 
 /*
- * Palette is lifted from the seating plan itself: warm cream paper, blush chips
- * for the bride's side, soft sky chips for the groom's side, muted gold accents.
- * The site is intentionally light-only — it is an invitation, not an app, and a
- * dark variant would fight the paper metaphor.
+ * Rose-led palette, built out from the couple's #D470A2.
+ *
+ * The envelope and the picker sit on saturated rose; everything inside the
+ * invitation stays on warm paper, so opening it reads as a change of place. The
+ * blush/sky pair still marks the bride's and groom's sides on the seating map.
  */
 @theme {
+  --color-rose: #d470a2;
+  --color-rose-deep: #a8447a;
+  --color-rose-dark: #7d2f57;
+  --color-rose-soft: #f3d3e2;
+  --color-rose-mist: #fbeef4;
+
   --color-cream: #fbf8f3;
   --color-paper: #ffffff;
   --color-ink: #2f2a26;
@@ -70,6 +77,90 @@ body {
   height: 1px;
 }
 
+/* The rose field behind the envelope and the picker. */
+.bg-rose-field {
+  background:
+    radial-gradient(
+      120% 90% at 50% 0%,
+      color-mix(in srgb, var(--color-rose) 82%, white) 0%,
+      var(--color-rose) 45%,
+      var(--color-rose-deep) 100%
+    );
+}
+
+/*
+ * Name-pill marquee. Rows drift by transform only, and each row's content is
+ * duplicated so the loop is seamless. Animating transform keeps this off the
+ * layout and paint paths, which is what makes it survive a mid-range phone.
+ */
+@keyframes pill-drift-left {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes pill-drift-right {
+  from {
+    transform: translate3d(-50%, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.pill-track {
+  display: flex;
+  width: max-content;
+  gap: 0.75rem;
+  will-change: transform;
+  animation-name: pill-drift-left;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.pill-track[data-direction="right"] {
+  animation-name: pill-drift-right;
+}
+
+.pill-track[data-paused="true"] {
+  animation-play-state: paused;
+}
+
+/* Fade the rows out at the edges so pills enter and leave rather than pop. */
+.pill-rows {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 6%,
+    black 94%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 6%,
+    black 94%,
+    transparent
+  );
+}
+
+/*
+ * The 3D viewport. touch-action has to sit on the canvas element itself: iOS
+ * Safari does not consistently inherit it from an ancestor, and without it a
+ * vertical drag is claimed as a page scroll before any pointermove arrives.
+ */
+.scene-shell,
+.scene-shell canvas {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -78,5 +169,14 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* A drifting track with animations disabled would sit half off-screen. */
+  .pill-track {
+    animation: none !important;
+    transform: none !important;
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: center;
   }
 }

@@ -1,19 +1,25 @@
 import NotFoundCard from "@/components/NotFoundCard";
 import SeatReveal from "@/components/SeatReveal";
 import SiteHeader from "@/components/SiteHeader";
-import StatusNotice from "@/components/StatusNotice";
 import { getLang } from "@/lib/lang";
 import { getSnapshot } from "@/lib/sheets";
 import { buildSeatView } from "@/lib/views";
 
-export const metadata = { title: "Your seat" };
+export const metadata = { title: "Your seat", robots: { index: false } };
 
+/**
+ * The seat reveal.
+ *
+ * No site header above the scene: it takes the full viewport, and a chrome bar
+ * on top of a doorway you are about to walk through breaks the illusion. The
+ * usual header returns below the fold, with the details.
+ */
 export default async function SeatPage({
   params,
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ celebrate?: string; guest?: string }>;
+  searchParams: Promise<{ celebrate?: string; guest?: string; debug?: string }>;
 }) {
   const [lang, { token }, query] = await Promise.all([
     getLang(),
@@ -36,13 +42,5 @@ export default async function SeatPage({
     );
   }
 
-  return (
-    <>
-      <SiteHeader lang={lang} />
-      <main className="flex-1">
-        <StatusNotice status={view.status} lang={lang} />
-        <SeatReveal view={view} lang={lang} />
-      </main>
-    </>
-  );
+  return <SeatReveal view={view} lang={lang} debug={query.debug === "1"} />;
 }

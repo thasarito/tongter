@@ -17,6 +17,7 @@ import { TABLES, TOTAL_SEATS } from "../venue.ts";
 import { fields } from "../rsvp-form.ts";
 import type {
   AdminView,
+  JourneyIntroView,
   QrSheetView,
   RsvpView,
   SearchView,
@@ -91,8 +92,8 @@ export function buildRsvpView(
   const members = guestsInGroup(snapshot, group.groupId);
   const latest = latestRsvpByGuest(snapshot);
 
-  // Per-group fields come from the last row in sheet order, matching how the
-  // append-only log is collapsed everywhere else.
+  // Who submitted last, for pre-filling that field. Notes are per person and
+  // come from each guest's own latest row instead.
   const groupRows = snapshot.rsvps.filter((r) => r.groupId === group.groupId);
   const lastRow = groupRows.at(-1);
 
@@ -102,7 +103,6 @@ export function buildRsvpView(
     token,
     groupLabel: groupLabelFor(group, lang),
     hasResponded: groupRows.length > 0,
-    message: lastRow?.message ?? "",
     submittedBy: lastRow?.submittedBy ?? "",
     allowDietaryOther,
     dietaryOptions: dietaryOptions.map((o) => ({
@@ -113,7 +113,6 @@ export function buildRsvpView(
       token: fields.token,
       lang: fields.lang,
       submittedBy: fields.submittedBy,
-      message: fields.message,
     },
     guests: members.map((guest) => {
       const previous = latest.get(guest.guestId);
@@ -124,10 +123,12 @@ export function buildRsvpView(
         seatIndex: guest.seatIndex,
         attending: previous?.attending ?? null,
         dietary: parseDietary(previous?.dietary ?? "", dietaryOptions),
+        note: previous?.message ?? "",
         fieldNames: {
           attending: fields.attending(guest.guestId),
           dietary: fields.dietary(guest.guestId),
           dietaryOther: fields.dietaryOther(guest.guestId),
+          note: fields.note(guest.guestId),
         },
       };
     }),
@@ -307,4 +308,38 @@ export function buildQrSheetView(
       url: `${siteUrl}/rsvp/${group.token}`,
     })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Guest journey
+// ---------------------------------------------------------------------------
+
+/**
+ * Everything the journey needs before a guest has identified themselves.
+ *
+ * The whole name list ships to the browser so the picker can drift and filter
+ * without a round trip per keystroke. It is trimmed to display fields only —
+ * seats, groups and personal tokens stay on the server until a guest is chosen.
+ */
+export function buildJourneyIntroView(
+  snapshot: Snapshot,
+  lang: Lang,
+): JourneyIntroView {
+  const sideCounts = { bride: 0, groom: 0 };
+  const guests = snapshot.guests
+    .filter((g) => g.nameTh || g.nameEn)
+    .map((g) => {
+      if (g.side) sideCounts[g.side] += 1;
+      const name = displayName(g, lang);
+      return {
+        guestId: g.guestId,
+        name,
+        nameTh: g.nameTh,
+        nameEn: g.nameEn,
+        initial: name.trim().slice(0, 1),
+        side: g.side,
+      };
+    });
+
+  return { status: snapshot.status, guests, sideCounts };
 }

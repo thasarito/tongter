@@ -31,6 +31,9 @@ import {
 
 const OUT_DIR = "out/sheet";
 
+/** Ambiguous characters omitted: tokens get read off printed cards by hand. */
+const TOKEN_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
+
 type Row = (string | number)[];
 
 interface TabData {
@@ -57,8 +60,9 @@ const demoTabs: TabData[] = [
       g.seatIndex,
       g.side ?? "",
       g.tags.join(","),
+      g.token,
     ]),
-    widths: [12, 16, 14, 12, 10, 12, 10, 12],
+    widths: [12, 16, 14, 12, 10, 12, 10, 12, 14],
   },
   {
     name: SHEET_TABS.groups,
@@ -86,6 +90,18 @@ const demoTabs: TabData[] = [
 // --- Blank workbook ---------------------------------------------------------
 
 const blankGuestRows: Row[] = [];
+const blankGuestTokens = new Set<string>();
+function personalToken(): string {
+  for (;;) {
+    const bytes = randomBytes(10);
+    let out = "";
+    for (const b of bytes) out += TOKEN_ALPHABET[b % TOKEN_ALPHABET.length];
+    if (!blankGuestTokens.has(out)) {
+      blankGuestTokens.add(out);
+      return out;
+    }
+  }
+}
 for (const table of TABLES) {
   for (const seat of seatsForTable(table.id)) {
     blankGuestRows.push([
@@ -97,6 +113,7 @@ for (const table of TABLES) {
       seat.seatIndex,
       "",
       "",
+      personalToken(),
     ]);
   }
 }
@@ -104,7 +121,6 @@ for (const table of TABLES) {
 // A generous pool of pre-numbered groups with unique tokens. 170 guests will
 // not need more than this, and unused rows can simply be deleted.
 const BLANK_GROUP_COUNT = 90;
-const TOKEN_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 
 const blankTokens = new Set<string>();
 while (blankTokens.size < BLANK_GROUP_COUNT) {

@@ -9,11 +9,12 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "check": "pnpm typecheck && pnpm check:venue && pnpm check:logic && pnpm check:views && pnpm check:walk",
+    "check": "pnpm typecheck && pnpm check:venue && pnpm check:logic && pnpm check:views && pnpm check:walk && pnpm check:look",
     "sheet": "node --experimental-strip-types scripts/make-sheet.ts",
     "push:sheet": "node --experimental-strip-types scripts/push-to-sheet.ts",
     "check:views": "node --experimental-strip-types scripts/check-views.ts",
     "check:sheets": "node --experimental-strip-types scripts/check-sheets.ts",
+    "check:look": "node --experimental-strip-types scripts/check-look.ts",
     "check:walk": "node --experimental-strip-types scripts/check-walk.ts",
     "check:logic": "node --experimental-strip-types scripts/check-logic.ts",
     "check:venue": "node --experimental-strip-types scripts/check-venue.ts"

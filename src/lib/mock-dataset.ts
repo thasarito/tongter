@@ -158,6 +158,11 @@ export function buildMockDataset(options: MockOptions = {}): MockDataset {
         seatIndex: seat.seatIndex,
         side: currentSide,
         tags: rng() < 0.08 ? ["vip"] : [],
+        // Personal invite token for /i/<token>. Readable in demo mode so the
+        // links are easy to type by hand.
+        token: readableTokens
+          ? `me${String(guests.length + 1).padStart(3, "0")}`
+          : makeToken(rng),
       });
 
       seatsLeft -= 1;

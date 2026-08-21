@@ -119,7 +119,6 @@ function baseForm(overrides: Record<string, string | string[]> = {}) {
     [fields.token]: group.token,
     [fields.lang]: "th",
     [fields.submittedBy]: "Tester",
-    [fields.message]: "hello",
   };
   for (const m of members) record[fields.attending(m.guestId)] = "yes";
   return fromRecord({ ...record, ...overrides });
@@ -135,22 +134,59 @@ check("missing token is rejected", (() => {
   return !r.ok && r.errorKey === "errorBody";
 })());
 
-check("an unanswered guest is rejected", (() => {
+// Partial submissions are the normal case: the journey walks a group one
+// person at a time and lets anyone stop early.
+check("a partly-filled form is accepted", (() => {
   const r = parseRsvpForm(
     baseForm({ [fields.attending(members[0].guestId)]: "" }),
     members,
     OPTIONS,
   );
-  return !r.ok && r.errorKey === "needOneAnswer";
+  return r.ok && r.value.answers.length === members.length - 1;
 })());
 
-check("a garbage attending value is rejected", (() => {
+check("a skipped guest gets no row at all", (() => {
+  const r = parseRsvpForm(
+    baseForm({ [fields.attending(members[0].guestId)]: "" }),
+    members,
+    OPTIONS,
+  );
+  return r.ok && !r.value.answers.some((a) => a.guestId === members[0].guestId);
+})());
+
+check("one answer out of the whole group is enough", (() => {
+  const only: Record<string, string | string[]> = {
+    [fields.token]: group.token,
+    [fields.attending(members[0].guestId)]: "yes",
+  };
+  const r = parseRsvpForm(fromRecord(only), members, OPTIONS);
+  return r.ok && r.value.answers.length === 1;
+})());
+
+check("a garbage attending value is treated as unanswered", (() => {
   const r = parseRsvpForm(
     baseForm({ [fields.attending(members[0].guestId)]: "maybe" }),
     members,
     OPTIONS,
   );
+  return r.ok && !r.value.answers.some((a) => a.guestId === members[0].guestId);
+})());
+
+check("a wholly empty form is rejected", (() => {
+  const empty: Record<string, string | string[]> = { [fields.token]: group.token };
+  const r = parseRsvpForm(fromRecord(empty), members, OPTIONS);
   return !r.ok && r.errorKey === "needOneAnswer";
+})());
+
+check("notes are captured per person", (() => {
+  const r = parseRsvpForm(
+    baseForm({ [fields.note(members[0].guestId)]: "see you there" }),
+    members,
+    OPTIONS,
+  );
+  return r.ok &&
+    r.value.answers[0].note === "see you there" &&
+    r.value.answers.slice(1).every((a) => a.note === "");
 })());
 
 check("empty membership is rejected",
@@ -197,11 +233,11 @@ check("free text is captured separately", (() => {
 
 check("over-long text is clamped", (() => {
   const r = parseRsvpForm(
-    baseForm({ [fields.message]: "x".repeat(MAX_TEXT + 500) }),
+    baseForm({ [fields.note(members[0].guestId)]: "x".repeat(MAX_TEXT + 500) }),
     members,
     OPTIONS,
   );
-  return r.ok && r.value.message.length === MAX_TEXT;
+  return r.ok && r.value.answers[0].note.length === MAX_TEXT;
 })());
 
 check("sheet entries serialise the selection", (() => {
@@ -279,8 +315,8 @@ if (rsvpView.kind === "form") {
     replayed.kind === "form" && replayed.guests[0].attending === false);
   check("the latest dietary is parsed into a selection",
     replayed.kind === "form" && replayed.guests[0].dietary.selected.join() === "halal");
-  check("the latest message is replayed",
-    replayed.kind === "form" && replayed.message === "changed my mind");
+  check("the latest note is replayed on that person",
+    replayed.kind === "form" && replayed.guests[0].note === "changed my mind");
 }
 
 // ---------------------------------------------------------------------------

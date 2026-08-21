@@ -60,3 +60,17 @@ export function displayName(guest: Guest, lang: "th" | "en"): string {
   if (lang === "en") return guest.nameEn || guest.nameTh;
   return guest.nameTh || guest.nameEn;
 }
+
+/**
+ * Finds a guest by their personal invite token (the `/i/<token>` links).
+ *
+ * Blank tokens never match, so guests without one cannot be reached by
+ * submitting an empty token.
+ */
+export function findGuestByToken(
+  snapshot: Snapshot,
+  token: string,
+): Guest | undefined {
+  if (!token) return undefined;
+  return snapshot.guests.find((g) => g.token && g.token === token);
+}

@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import SeatMap2D from "./SeatMap2D";
+import StatusNotice from "./StatusNotice";
 import { t, type Lang } from "@/lib/i18n";
 import type { SeatView } from "@/lib/views";
 
@@ -17,6 +18,8 @@ const Walkthrough = dynamic(() => import("./venue3d/Walkthrough"), {
 export interface SeatRevealProps {
   view: SeatView;
   lang: Lang;
+  /** Shows the look-around diagnostic readout (`?debug=1`). */
+  debug?: boolean;
 }
 
 // --- Environment detection --------------------------------------------------
@@ -65,7 +68,7 @@ function useReducedMotion(): boolean {
   );
 }
 
-export default function SeatReveal({ view, lang }: SeatRevealProps) {
+export default function SeatReveal({ view, lang, debug = false }: SeatRevealProps) {
   const { celebrate, focus, group, token } = view;
   const copy = t(lang);
   const webgl = useWebGL();
@@ -96,21 +99,20 @@ export default function SeatReveal({ view, lang }: SeatRevealProps) {
   const isWalking = show3D && !arrived;
 
   return (
-    <section className="mx-auto w-full max-w-3xl px-6 pb-20">
-      {celebrate && (
-        <div className="mb-6 rounded-xl border border-gold/40 bg-gold-soft px-5 py-4 text-center">
-          <p className="font-display text-xl text-ink">{copy.rsvp.successTitle}</p>
-          <p className="mt-1 text-sm text-muted">{copy.rsvp.successBody}</p>
-        </div>
-      )}
-
-      <div className="relative overflow-hidden rounded-2xl border border-line bg-cream">
-        <div className="h-[52vh] min-h-[320px] w-full">
+    <section className="w-full">
+      {/*
+        The scene takes the whole viewport: it is the moment the whole journey
+        builds to, and a walk through a doorway does not read in a letterbox.
+        Everything else sits below the fold.
+      */}
+      <div className="relative h-dvh w-full overflow-hidden bg-cream">
+        <div className="absolute inset-0">
           {show3D ? (
             <Walkthrough
               highlight={highlight}
               animate={animate}
               replayKey={replayKey}
+              debug={debug}
               onArrive={() => setArrivedKey(replayKey)}
             />
           ) : (
@@ -125,21 +127,42 @@ export default function SeatReveal({ view, lang }: SeatRevealProps) {
           )}
         </div>
 
-        {isWalking && (
-          <p className="pointer-events-none absolute inset-x-0 top-4 text-center text-xs tracking-wide text-muted">
-            {copy.seat.walkingIn}
+        {celebrate && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-cream via-cream/85 to-transparent px-6 pb-10 pt-6 text-center">
+            <p className="font-display text-xl text-ink">{copy.rsvp.successTitle}</p>
+            <p className="mt-1 text-sm text-muted">{copy.rsvp.successBody}</p>
+          </div>
+        )}
+
+        {show3D && (
+          <p
+            className={`pointer-events-none absolute inset-x-0 text-center text-xs tracking-wide text-muted ${
+              celebrate ? "top-24" : "top-5"
+            }`}
+          >
+            {isWalking ? copy.seat.walkingIn : arrived ? copy.seat.dragToLook : ""}
           </p>
         )}
 
         {focus && arrived && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-cream via-cream/90 to-transparent px-5 pb-5 pt-10 text-center">
-            <p className="font-display text-2xl text-ink sm:text-3xl">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-cream via-cream/90 to-transparent px-5 pb-8 pt-14 text-center">
+            <p className="font-display text-3xl text-ink sm:text-4xl">
               {focus.name}
             </p>
             <p className="mt-1 text-sm text-muted">
               {copy.common.table} {focus.tableId} · {copy.common.seat}{" "}
               {focus.seatIndex}
             </p>
+            {/*
+              The canvas swallows touch so dragging can turn the view, which
+              also means a phone cannot scroll past it. This is the way out.
+            */}
+            <a
+              href="#seat-details"
+              className="pointer-events-auto mt-5 inline-block text-[0.7rem] uppercase tracking-[0.2em] text-muted/80 underline underline-offset-4 transition hover:text-ink"
+            >
+              {copy.seat.scrollForDetails}
+            </a>
           </div>
         )}
 
@@ -169,8 +192,16 @@ export default function SeatReveal({ view, lang }: SeatRevealProps) {
         )}
       </div>
 
-      {/* Group roster */}
-      <div className="mt-8">
+      {/* Below the fold: who else is with you, and the plan view. */}
+      <div
+        id="seat-details"
+        className="mx-auto w-full max-w-3xl scroll-mt-4 px-6 pb-20 pt-12"
+      >
+        {/* Only ever visible when the guest list could not be refreshed. */}
+        <StatusNotice status={view.status} lang={lang} />
+
+        {/* Group roster */}
+        <div>
         <h2 className="text-xs uppercase tracking-[0.2em] text-muted">
           {copy.seat.groupSeats}
         </h2>
@@ -216,13 +247,14 @@ export default function SeatReveal({ view, lang }: SeatRevealProps) {
         </div>
       </div>
 
-      <div className="mt-8 text-center">
-        <Link
-          href={`/rsvp/${token}`}
-          className="text-sm text-gold underline underline-offset-4 hover:text-ink"
-        >
-          {copy.rsvp.title}
-        </Link>
+        <div className="mt-8 text-center">
+          <Link
+            href={`/rsvp/${token}`}
+            className="text-sm text-rose underline underline-offset-4 hover:text-ink"
+          >
+            {copy.rsvp.title}
+          </Link>
+        </div>
       </div>
     </section>
   );

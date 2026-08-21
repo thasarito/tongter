@@ -31,6 +31,8 @@ export const fields = {
   dietary: (guestId: string) => `dietary:${guestId}`,
   /** Free-text box per guest, for anything not in the options. */
   dietaryOther: (guestId: string) => `dietaryOther:${guestId}`,
+  /** Per-person note to the couple. */
+  note: (guestId: string) => `note:${guestId}`,
 } as const;
 
 /** Longest value accepted in any free-text field. */
@@ -80,13 +82,13 @@ export interface RsvpAnswer {
   guestId: string;
   attending: boolean;
   dietary: DietarySelection;
+  note: string;
 }
 
 export interface ParsedRsvp {
   token: string;
   lang: string;
   submittedBy: string;
-  message: string;
   answers: RsvpAnswer[];
 }
 
@@ -108,6 +110,12 @@ function clamp(value: string | null): string {
  * caller — answers are collected by walking it, never by trusting whatever
  * guest ids the request happened to contain. A crafted POST therefore cannot
  * answer on behalf of somebody in a different group.
+ *
+ * **Partial submissions are valid.** The journey walks a group one person at a
+ * time and lets anyone stop early, so a form covering only some of the group is
+ * the normal case, not an error. Guests left blank are simply skipped: no row is
+ * written for them, and their previous answer (if any) still stands. Only a
+ * wholly empty form is rejected.
  */
 export function parseRsvpForm(
   values: FormValues,
@@ -118,30 +126,32 @@ export function parseRsvpForm(
   if (!token) return { ok: false, errorKey: "errorBody" };
   if (guests.length === 0) return { ok: false, errorKey: "errorBody" };
 
+  const known = new Set(options.map((o) => o.id));
   const answers: RsvpAnswer[] = [];
 
   for (const guest of guests) {
     const raw = values.get(fields.attending(guest.guestId));
-    // A blank is an unfinished form, not a decline.
-    if (raw !== "yes" && raw !== "no") {
-      return { ok: false, errorKey: "needOneAnswer" };
-    }
+    // Blank means "not answered yet" — skip, do not decline on their behalf.
+    if (raw !== "yes" && raw !== "no") continue;
 
-    const known = new Set(options.map((o) => o.id));
     const selected = values
       .getAll(fields.dietary(guest.guestId))
       .map((v) => v.trim())
       .filter((v) => known.has(v));
 
-    const other = clamp(values.get(fields.dietaryOther(guest.guestId)));
-
     answers.push({
       guestId: guest.guestId,
       attending: raw === "yes",
       // De-duplicate: a checkbox group can legitimately repeat a value.
-      dietary: { selected: [...new Set(selected)], other },
+      dietary: {
+        selected: [...new Set(selected)],
+        other: clamp(values.get(fields.dietaryOther(guest.guestId))),
+      },
+      note: clamp(values.get(fields.note(guest.guestId))),
     });
   }
+
+  if (answers.length === 0) return { ok: false, errorKey: "needOneAnswer" };
 
   return {
     ok: true,
@@ -149,7 +159,6 @@ export function parseRsvpForm(
       token,
       lang: clamp(values.get(fields.lang)) || "th",
       submittedBy: clamp(values.get(fields.submittedBy)),
-      message: clamp(values.get(fields.message)),
       answers,
     },
   };
@@ -161,6 +170,7 @@ export function toSheetEntries(parsed: ParsedRsvp) {
     guestId: a.guestId,
     attending: a.attending,
     dietary: serializeDietary(a.dietary),
+    note: a.note,
   }));
 }
 

@@ -1,5 +1,5 @@
 import type { DietarySelection } from "../dietary.ts";
-import type { SnapshotStatus } from "../types.ts";
+import type { Side, SnapshotStatus } from "../types.ts";
 
 /**
  * View models: the shape each screen needs, and nothing else.
@@ -48,6 +48,8 @@ export interface DietaryOptionView {
 
 export interface RsvpGuestView extends GuestWithAnswer {
   dietary: DietarySelection;
+  /** This person's own note to the couple. */
+  note: string;
   /**
    * Pre-built field names, so the form component never has to know the wire
    * format — it just spreads these onto inputs.
@@ -56,6 +58,7 @@ export interface RsvpGuestView extends GuestWithAnswer {
     attending: string;
     dietary: string;
     dietaryOther: string;
+    note: string;
   };
 }
 
@@ -67,7 +70,6 @@ export interface RsvpFormView extends ViewBase {
   /** True when this group has submitted at least once before. */
   hasResponded: boolean;
   guests: RsvpGuestView[];
-  message: string;
   submittedBy: string;
   dietaryOptions: DietaryOptionView[];
   allowDietaryOther: boolean;
@@ -76,7 +78,6 @@ export interface RsvpFormView extends ViewBase {
     token: string;
     lang: string;
     submittedBy: string;
-    message: string;
   };
 }
 
@@ -146,6 +147,30 @@ export interface AdminView extends ViewBase {
   dietaryTotals: { label: string; count: number }[];
   messages: { from: string; text: string; at: string }[];
   groups: GroupStatusView[];
+}
+
+/**
+ * A guest as the name picker sees them.
+ *
+ * Deliberately minimal: this list goes to the browser in full, so it carries
+ * only what is needed to show a pill and match a search — no seat, no group, no
+ * personal token.
+ */
+export interface PickerGuestView {
+  guestId: string;
+  /** Display name in the chosen language. */
+  name: string;
+  /** Both spellings, so the Thai-aware matcher works client-side. */
+  nameTh: string;
+  nameEn: string;
+  /** First character, for the pill's monogram badge. */
+  initial: string;
+  side: Side | null;
+}
+
+export interface JourneyIntroView extends ViewBase {
+  guests: PickerGuestView[];
+  sideCounts: Record<Side, number>;
 }
 
 export interface QrCardView {

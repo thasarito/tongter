@@ -44,7 +44,6 @@ export async function submitRsvp(
       groupId: group.groupId,
       submittedBy: parsed.value.submittedBy,
       lang: parsed.value.lang,
-      message: parsed.value.message,
       entries: toSheetEntries(parsed.value),
     });
   } catch (err) {

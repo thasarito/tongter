@@ -82,14 +82,17 @@ check("all seats sit inside the hall walls", outside.length === 0,
   outside.length ? `${outside.length} outside, e.g. T${outside[0].tableId}#${outside[0].seatIndex}` : "");
 
 for (const [name, p] of Object.entries(PROPS)) {
-  const okX = p.center.x - p.width / 2 >= HALL.minX && p.center.x + p.width / 2 <= HALL.maxX;
-  const okZ = p.center.z - p.depth / 2 >= HALL.minZ && p.center.z + p.depth / 2 <= HALL.maxZ;
+  const halfW = p.width / 2;
+  const halfD = p.shape === "round" ? p.width / 2 : p.depth / 2;
+  const okX = p.center.x - halfW >= HALL.minX && p.center.x + halfW <= HALL.maxX;
+  const okZ = p.center.z - halfD >= HALL.minZ && p.center.z + halfD <= HALL.maxZ;
   check(`prop "${name}" is inside the hall`, okX && okZ);
   // Props must not sit on top of anyone.
-  const clash = ALL_SEATS.find(
-    (s) =>
-      Math.abs(s.x - p.center.x) < p.width / 2 + DIMS.chairClearance &&
-      Math.abs(s.z - p.center.z) < p.depth / 2 + DIMS.chairClearance,
+  const clash = ALL_SEATS.find((s) =>
+    p.shape === "round"
+      ? Math.hypot(s.x - p.center.x, s.z - p.center.z) < halfW + DIMS.chairClearance
+      : Math.abs(s.x - p.center.x) < halfW + DIMS.chairClearance &&
+        Math.abs(s.z - p.center.z) < halfD + DIMS.chairClearance,
   );
   check(`prop "${name}" does not overlap a seat`, !clash,
     clash ? `hits T${clash.tableId}#${clash.seatIndex}` : "");
@@ -149,23 +152,45 @@ console.log("\n--- chair orientation ---");
 
 console.log("\n--- aisles ---");
 // Guests must be able to walk between the back-to-back chair rows of adjacent
-// table rows. Anything under ~0.7 m is not passable.
+// long tables. Anything under ~0.7 m is not passable.
+//
+// Long tables only: a round table's ten chairs sit at seven different z values
+// on one ring, so treating each as a "row" would compare seats that are simply
+// neighbours around the same table. Round-table spacing is covered by the
+// collision check above and the ring check below.
 const MIN_AISLE = 0.7;
-const rowZs = [...new Set(ALL_SEATS.map((s) => Number(s.z.toFixed(3))))].sort((a, b) => a - b);
+const longSeats = ALL_SEATS.filter(
+  (s) => TABLES.find((t) => t.id === s.tableId)?.shape === "long",
+);
+const rowZs = [...new Set(longSeats.map((s) => Number(s.z.toFixed(3))))].sort((a, b) => a - b);
 for (let i = 0; i < rowZs.length - 1; i++) {
   const gap = rowZs[i + 1] - rowZs[i] - 2 * DIMS.chairClearance;
-  // Rows belonging to the same table (its two sides) are separated by the table
-  // itself, which is expected and not an aisle.
-  const sameTable = ALL_SEATS.some(
+  // The two sides of one table are separated by the table itself, not an aisle.
+  const sameTable = longSeats.some(
     (a) =>
       Number(a.z.toFixed(3)) === rowZs[i] &&
-      ALL_SEATS.some(
+      longSeats.some(
         (b) => b.tableId === a.tableId && Number(b.z.toFixed(3)) === rowZs[i + 1],
       ),
   );
   if (sameTable) continue;
   check(`aisle between chair rows z=${rowZs[i].toFixed(2)} and z=${rowZs[i + 1].toFixed(2)}`,
     gap >= MIN_AISLE, `${gap.toFixed(2)} m`);
+}
+
+// Adjacent round tables must not have overlapping chair rings.
+const roundTables = TABLES.filter((t) => t.shape === "round");
+for (let i = 0; i < roundTables.length; i++) {
+  for (let j = i + 1; j < roundTables.length; j++) {
+    const a = roundTables[i];
+    const b = roundTables[j];
+    const gap =
+      Math.hypot(a.center.x - b.center.x, a.center.z - b.center.z) -
+      2 * DIMS.roundTableSeatRadius;
+    // Only complain about tables that are actually near each other.
+    if (gap > 3) continue;
+    check(`round tables ${a.id}/${b.id} rings clear`, gap >= 0.4, `${gap.toFixed(2)} m`);
+  }
 }
 
 console.log("\n--- layout summary ---");
@@ -197,10 +222,16 @@ console.log("\n--- plan view (north at top, same orientation as the JPEG) ---\n"
     if (r >= 0 && r < ROWS && c >= 0 && c < COLS && grid[r][c] === " ") grid[r][c] = ch;
   };
 
+  const PROP_CHAR: Record<string, string> = {
+    bar: "B", stage: "S", band: "N", cakeTable: "C",
+  };
   for (const [name, p] of Object.entries(PROPS)) {
-    const ch = name === "bar" ? "B" : "S";
-    for (let z = p.center.z - p.depth / 2; z <= p.center.z + p.depth / 2; z += 0.2) {
+    const ch = PROP_CHAR[name] ?? "#";
+    const halfD = p.shape === "round" ? p.width / 2 : p.depth / 2;
+    for (let z = p.center.z - halfD; z <= p.center.z + halfD; z += 0.2) {
       for (let x = p.center.x - p.width / 2; x <= p.center.x + p.width / 2; x += 0.2) {
+        if (p.shape === "round" &&
+            Math.hypot(x - p.center.x, z - p.center.z) > p.width / 2) continue;
         put(toRow(z), toCol(x), ch);
       }
     }
@@ -222,7 +253,7 @@ console.log("\n--- plan view (north at top, same orientation as the JPEG) ---\n"
   console.log(border);
   for (const row of grid) console.log("|" + row.join("") + "|");
   console.log(border);
-  console.log("  o = seat   B = bar   S = stage   digits = table number");
+  console.log("  o = seat   B = bar   S = stage   N = band   C = cake   digits = table");
   console.log("  entrance is bottom-centre\n");
 }
 

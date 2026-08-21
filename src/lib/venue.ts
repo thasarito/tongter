@@ -5,14 +5,16 @@
  * Google Sheet. The Sheet only says *who* sits at (tableId, seatIndex); this
  * file says *where* that is, in metres, for both the 2D map and the 3D scene.
  *
- * Table positions come from docs/seat_plan.jpg. East–west placement is traced
- * directly: screenshot pixels map to world metres via PX_TO_M about the image
- * centre. North–south placement is *not* traced — the screenshot is a schematic
- * that packs its rows tighter than real furniture allows (tracing it puts the
- * chairs of tables 3 and 4 only 0.40 m apart, back to back). Instead each table
- * is assigned to a named row whose spacing accounts for real chairs and a
- * walkable aisle. Row order and left-to-right arrangement match the plan, so
- * the layout still reads as the same room.
+ * Traced from `seatingplan.jpg`, the venue's own dimensioned floor plan, by
+ * calibrating against its 28 m width marker. Everything structural — hall size,
+ * the three arched alcoves, the stage, the band, the bar and the central aisle —
+ * comes from that drawing.
+ *
+ * The one thing not taken literally is north–south row spacing. The drawing
+ * packs the long-table rows about 2.65 m apart, which leaves too little room
+ * between facing chair backs for the walking camera to pass. Rows are set to
+ * 2.9 m instead: within the drawing's tolerance, and walkable. Table order,
+ * sizes and east–west positions are all as drawn.
  */
 
 export type TableShape = "long" | "round";
@@ -40,53 +42,36 @@ export interface Seat {
   rotationY: number;
 }
 
-// ---------------------------------------------------------------------------
-// Scale and hall
-// ---------------------------------------------------------------------------
+export type PropShape = "rect" | "round";
 
-/** Screenshot pixels → metres. A 15-per-side long table lands at ~9.75 m. */
-const PX_TO_M = 0.0125;
-
-/** Horizontal centre of docs/seat_plan.jpg, used as the world origin for x. */
-const IMG_CENTER_X = 818;
-
-/** Traced east–west position of a table, from its pixel x in the screenshot. */
-function xFromPixels(px: number): number {
-  return (px - IMG_CENTER_X) * PX_TO_M;
+export interface PropDef {
+  center: Vec2;
+  shape: PropShape;
+  /** Rect: east–west size. Round: diameter (depth is ignored). */
+  width: number;
+  depth: number;
+  height: number;
+  label: { th: string; en: string };
 }
 
-/**
- * North–south row positions, in metres.
- *
- * Spacing is derived, not traced. Two long tables back to back need
- * 2 x (seat offset + chair depth) plus an aisle: 2 x (0.78 + 0.25) + 0.85 aisle
- * ≈ 2.9 m between row centres. Round tables need 2 x (seat radius + chair depth)
- * plus an aisle ≈ 4.0 m.
- */
-const ROW_Z = {
-  /** Round tables against the north wall: 8, 9, 10. */
-  roundBack: -8.3,
-  /** Round tables in front of them: 6, 7. */
-  roundFront: -4.3,
-  /** Long tables 4 and 5. */
-  longNorth: -0.9,
-  /** Long table 3. */
-  longMiddle: 2.0,
-  /** Long tables 1 and 2, nearest the entrance. */
-  longSouth: 4.9,
-} as const;
+// ---------------------------------------------------------------------------
+// Hall
+// ---------------------------------------------------------------------------
 
 /**
- * Explicit bounds rather than width/depth about the origin: the seating is
- * pushed north, so a symmetric room would leave a large dead strip at the back
+ * Explicit bounds rather than width/depth about the origin: the alcoves push
+ * the seating north, so a symmetric room would leave a dead strip at the back
  * and clip the round tables at the front.
+ *
+ * 28 m wide, as marked on the plan. The depth spans the alcove recess, the main
+ * hall, and the foyer inside the entrance.
  */
 export const HALL = {
-  minX: -11,
-  maxX: 11,
-  minZ: -11,
-  maxZ: 8.5,
-  wallHeight: 4.2,
+  minX: -14,
+  maxX: 14,
+  minZ: -11.4,
+  maxZ: 5.6,
+  wallHeight: 4.6,
 } as const;
 
 export const HALL_WIDTH = HALL.maxX - HALL.minX;
@@ -96,8 +81,56 @@ export const HALL_CENTER: Vec2 = {
   z: (HALL.minZ + HALL.maxZ) / 2,
 };
 
-/** Where the flythrough camera starts: the doorway at the south edge. */
-export const ENTRANCE: Vec2 = { x: 0, z: 7.6 };
+/** Where the walk starts: just inside the doorway on the south wall. */
+export const ENTRANCE: Vec2 = { x: 0, z: 5.2 };
+
+/**
+ * The doorway itself, set into the south wall and centred as drawn.
+ *
+ * Shared so the wall opening, the doors and the camera's approach all agree on
+ * where the threshold is.
+ */
+export const GATE = {
+  center: { x: 0, z: 5.6 },
+  width: 2.6,
+  height: 2.9,
+} as const;
+
+/**
+ * Where the walk begins — outside, far enough back to take in the whole
+ * doorway but no further: every extra metre here is added to all 170 routes.
+ * At 3.2 m the 2.9 m doorway still sits comfortably inside a 62° lens.
+ */
+export const APPROACH: Vec2 = { x: 0, z: 8.8 };
+
+/** How far the ground extends beyond the south wall, so outside is not a void. */
+export const OUTSIDE_DEPTH = 14;
+
+/**
+ * The three arched recesses along the north wall, 6 m / 7.2 m / 6 m as marked.
+ * Rendered as curved wall segments rather than modelled cavities — the shape
+ * reads from inside the room without the polygon cost.
+ */
+export const ALCOVES = [
+  { center: -9.35, width: 6.2, label: { th: "", en: "" } },
+  { center: 0, width: 7.5, label: { th: "", en: "" } },
+  { center: 9.4, width: 6.1, label: { th: "วงดนตรี", en: "Band" } },
+] as const;
+
+/** Depth of the alcove recess, north of the main wall line. */
+export const ALCOVE_DEPTH = 3.6;
+
+/** The main north wall line; alcoves cut back from here. */
+export const NORTH_WALL_Z = -7.6;
+
+/**
+ * The carpeted aisle: in from the entrance, then east toward the stage. Drawn
+ * on the floor and kept clear of furniture, so the walk uses it naturally.
+ */
+export const AISLE = {
+  spine: { minX: -0.7, maxX: 0.7, minZ: -2.8, maxZ: HALL.maxZ },
+  toStage: { minX: 0, maxX: 9.7, minZ: -2.8, maxZ: -1.4 },
+} as const;
 
 // ---------------------------------------------------------------------------
 // Furniture dimensions
@@ -112,10 +145,13 @@ export const DIMS = {
   longTableSeatOffset: 0.78,
   /** Half-depth of a chair, used for clearance checks. */
   chairClearance: 0.25,
-  /** Round table top diameter. */
-  roundTableDiameter: 1.8,
-  /** Distance from a round table's centre out to its chairs. */
-  roundTableSeatRadius: 1.35,
+  /**
+   * Round tables seat ten. At 1.5 m across with chairs on a 1.0 m radius the
+   * ring is 2 m wide, which is what lets three of them sit in the 7.5 m middle
+   * alcove without their chairs colliding.
+   */
+  roundTableDiameter: 1.5,
+  roundTableSeatRadius: 1.0,
   tableHeight: 0.75,
   chairSeatHeight: 0.45,
 } as const;
@@ -124,27 +160,84 @@ export const DIMS = {
 // Tables
 // ---------------------------------------------------------------------------
 
+/** North–south row centres for the long tables, 2.9 m apart. */
+const ROW_Z = {
+  /** Tables 4 and 5, nearest the alcoves. */
+  north: -5.0,
+  /** Table 3. */
+  middle: -2.1,
+  /** Tables 1 and 2, nearest the entrance. */
+  south: 0.8,
+} as const;
+
+/** Round tables sit inside the alcove recess. */
+const ROUND_Z = {
+  front: -8.1,
+  back: -9.9,
+} as const;
+
 export const TABLES: readonly TableDef[] = [
-  // Long tables, south half of the room.
-  { id: 1, shape: "long", seats: 24, center: { x: xFromPixels(538), z: ROW_Z.longSouth } },
-  { id: 2, shape: "long", seats: 18, center: { x: xFromPixels(1317), z: ROW_Z.longSouth } },
-  { id: 3, shape: "long", seats: 24, center: { x: xFromPixels(538), z: ROW_Z.longMiddle } },
-  { id: 4, shape: "long", seats: 30, center: { x: xFromPixels(476), z: ROW_Z.longNorth } },
-  { id: 5, shape: "long", seats: 24, center: { x: xFromPixels(1251), z: ROW_Z.longNorth } },
-  // Round tables, north half.
-  { id: 6, shape: "round", seats: 10, center: { x: xFromPixels(813), z: ROW_Z.roundFront } },
-  { id: 7, shape: "round", seats: 10, center: { x: xFromPixels(1207), z: ROW_Z.roundFront } },
-  { id: 8, shape: "round", seats: 10, center: { x: xFromPixels(157), z: ROW_Z.roundBack } },
-  { id: 9, shape: "round", seats: 10, center: { x: xFromPixels(470), z: ROW_Z.roundBack } },
-  { id: 10, shape: "round", seats: 10, center: { x: xFromPixels(1010), z: ROW_Z.roundBack } },
+  // Long tables. Sizes and left-to-right order exactly as drawn.
+  { id: 1, shape: "long", seats: 24, center: { x: -5.1, z: ROW_Z.south } },
+  { id: 2, shape: "long", seats: 18, center: { x: 5.3, z: ROW_Z.south } },
+  { id: 3, shape: "long", seats: 24, center: { x: -5.1, z: ROW_Z.middle } },
+  { id: 4, shape: "long", seats: 30, center: { x: -6.25, z: ROW_Z.north } },
+  { id: 5, shape: "long", seats: 24, center: { x: 4.2, z: ROW_Z.north } },
+  // Round tables: three in the middle alcove (one set back), two in the left.
+  { id: 6, shape: "round", seats: 10, center: { x: -2.6, z: ROUND_Z.front } },
+  { id: 7, shape: "round", seats: 10, center: { x: 2.6, z: ROUND_Z.front } },
+  { id: 8, shape: "round", seats: 10, center: { x: -10.9, z: -8.8 } },
+  { id: 9, shape: "round", seats: 10, center: { x: -7.8, z: -8.8 } },
+  { id: 10, shape: "round", seats: 10, center: { x: 0, z: ROUND_Z.back } },
 ] as const;
 
-/** Non-seating props, drawn in both the 2D map and the 3D scene. */
-export const PROPS = {
-  /** West wall beside the entrance, matching the Bar block in the plan. */
-  bar: { center: { x: -9.5, z: 4.9 }, width: 1.2, depth: 3.5, height: 1.1 },
-  /** North-east corner, where the plan's banquet/stage block is cut off. */
-  stage: { center: { x: 9.0, z: -6.5 }, width: 2.4, depth: 4.0, height: 0.4 },
+/** Non-seating features, drawn in both the 2D map and the 3D scene. */
+export const PROPS: Record<string, PropDef> = {
+  /** West wall, between the entrance and the tables, as drawn. */
+  bar: {
+    center: { x: -11.5, z: 1.5 },
+    shape: "rect",
+    width: 1.2,
+    depth: 3.5,
+    height: 1.1,
+    label: { th: "บาร์", en: "Bar" },
+  },
+  /** The round feature drawn beside the bar. */
+  cakeTable: {
+    center: { x: -11.3, z: -1.2 },
+    shape: "round",
+    width: 1.2,
+    depth: 1.2,
+    height: 0.75,
+    label: { th: "เค้ก", en: "Cake" },
+  },
+  /** East side, 3.6 x 7.2 m and 0.40 m high, as marked. Carries the B&G table. */
+  stage: {
+    center: { x: 11.5, z: -2.1 },
+    shape: "rect",
+    width: 3.6,
+    depth: 7.2,
+    height: 0.4,
+    label: { th: "เวที", en: "Stage" },
+  },
+  /** The right-hand alcove. */
+  band: {
+    center: { x: 9.4, z: -9.2 },
+    shape: "rect",
+    width: 5,
+    depth: 2.6,
+    height: 0.2,
+    label: { th: "วงดนตรี", en: "Band" },
+  },
+} as const;
+
+/** The couple's table, standing on the stage. */
+export const BG_TABLE = {
+  center: { x: 11.5, z: -2.1 },
+  width: 0.9,
+  depth: 2.2,
+  /** Sits on top of the stage platform. */
+  baseHeight: PROPS.stage.height,
 } as const;
 
 export const TOTAL_SEATS = TABLES.reduce((sum, t) => sum + t.seats, 0);
@@ -158,7 +251,7 @@ export const TOTAL_SEATS = TABLES.reduce((sum, t) => sum + t.seats, 0);
  *
  *  - Long tables: 1 … N/2 is the north row, left→right (west→east).
  *                 N/2+1 … N is the south row, left→right.
- *                 This mirrors the two-row grid drawn in the screenshot.
+ *                 This mirrors the two-row grid drawn in the plan.
  *  - Round tables: 1 … 10 clockwise from the top (north) position.
  */
 export function seatsForTable(tableId: number): Seat[] {
@@ -204,7 +297,7 @@ export function seatsForTable(tableId: number): Seat[] {
 
 /**
  * Unit vector pointing from the table out through the back of a chair — the
- * open side a guest walks in from, and where the flythrough camera settles.
+ * open side a guest walks in from, and where the walking camera settles.
  *
  * Derived from rotationY so it stays correct for both table shapes: a chair
  * faces (sin r, cos r), so outward is the negation.
@@ -225,10 +318,7 @@ export function seatKey(tableId: number, seatIndex: number): string {
   return `${tableId}:${seatIndex}`;
 }
 
-export function getSeat(
-  tableId: number,
-  seatIndex: number,
-): Seat | undefined {
+export function getSeat(tableId: number, seatIndex: number): Seat | undefined {
   return SEAT_LOOKUP.get(seatKey(tableId, seatIndex));
 }
 
@@ -247,4 +337,19 @@ export function longTableLength(table: TableDef): number {
  */
 export function isValidSeat(tableId: number, seatIndex: number): boolean {
   return SEAT_LOOKUP.has(seatKey(tableId, seatIndex));
+}
+
+/** True when a point lies on the carpeted aisle. */
+export function isOnAisle(x: number, z: number): boolean {
+  const inSpine =
+    x >= AISLE.spine.minX &&
+    x <= AISLE.spine.maxX &&
+    z >= AISLE.spine.minZ &&
+    z <= AISLE.spine.maxZ;
+  const inBranch =
+    x >= AISLE.toStage.minX &&
+    x <= AISLE.toStage.maxX &&
+    z >= AISLE.toStage.minZ &&
+    z <= AISLE.toStage.maxZ;
+  return inSpine || inBranch;
 }

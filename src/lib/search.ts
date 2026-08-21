@@ -1,4 +1,13 @@
-import type { Guest } from "./types.ts";
+/**
+ * The fields matching actually needs. Narrowing to this means the browser can
+ * be handed a name list for the picker without also shipping seat assignments
+ * or personal invite tokens.
+ */
+export interface SearchableGuest {
+  guestId: string;
+  nameTh: string;
+  nameEn: string;
+}
 
 /**
  * Guest name search.
@@ -70,8 +79,8 @@ function scoreOne(candidate: string, query: string): number {
   return 0;
 }
 
-export interface GuestMatch {
-  guest: Guest;
+export interface GuestMatch<T extends SearchableGuest = SearchableGuest> {
+  guest: T;
   score: number;
 }
 
@@ -79,11 +88,11 @@ export interface GuestMatch {
  * Ranked matches for a query. Requires at least two characters so the whole
  * guest list can never be enumerated by submitting a single letter.
  */
-export function searchGuests(
-  guests: readonly Guest[],
+export function searchGuests<T extends SearchableGuest>(
+  guests: readonly T[],
   query: string,
   limit = 8,
-): GuestMatch[] {
+): GuestMatch<T>[] {
   const q = query.trim();
   if (q.length < 2) return [];
 

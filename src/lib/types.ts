@@ -17,6 +17,12 @@ export interface Guest {
   seatIndex: number;
   side: Side | null;
   tags: string[];
+  /**
+   * Personal invite token, used by /i/<token> to open straight onto this
+   * guest's own card. Optional: a guest without one is still reachable through
+   * their group's token and through the name picker.
+   */
+  token: string;
 }
 
 export interface Group {
@@ -68,6 +74,7 @@ export const GUEST_HEADERS = [
   "seat_index",
   "side",
   "tags",
+  "token",
 ] as const;
 
 export const GROUP_HEADERS = [

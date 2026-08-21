@@ -109,6 +109,16 @@ function GuestRow({
           className="mt-3 w-full rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-gold"
         />
       )}
+
+      <textarea
+        name={guest.fieldNames.note}
+        defaultValue={guest.note}
+        rows={2}
+        placeholder={copy.messagePlaceholder}
+        aria-label={`${copy.messageLabel} — ${guest.name}`}
+        maxLength={500}
+        className="mt-3 w-full resize-y rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-gold"
+      />
     </li>
   );
 }
@@ -161,23 +171,6 @@ export default function RsvpForm({
           />
         </div>
 
-        <div>
-          <label
-            htmlFor="message"
-            className="block text-xs uppercase tracking-[0.15em] text-muted"
-          >
-            {copy.messageLabel}
-          </label>
-          <textarea
-            id="message"
-            name={view.fieldNames.message}
-            rows={4}
-            defaultValue={view.message}
-            maxLength={500}
-            placeholder={copy.messagePlaceholder}
-            className="mt-2 w-full resize-y rounded-lg border border-line bg-paper px-4 py-3 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-gold"
-          />
-        </div>
       </div>
 
       {state.status === "error" && state.errorKey && (

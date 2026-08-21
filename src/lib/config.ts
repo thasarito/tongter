@@ -8,20 +8,22 @@ import type { DietaryOption } from "./dietary.ts";
  */
 
 export const event = {
-  // TODO(couple): confirm spellings and nicknames.
+  // TODO(couple): the groom's Thai spelling is confirmed; the bride's is still
+  // a transliteration of "Warissara" and needs checking.
   bride: { th: "วริศรา", en: "Warissara" },
-  groom: { th: "ธนัช", en: "Thanat" },
+  groom: { th: "ธสฤษฏ์", en: "Thasarit" },
 
   /** ISO 8601 with timezone. Drives the countdown and the calendar link. */
-  startsAt: "2027-01-16T17:00:00+07:00",
+  startsAt: "2026-11-15T18:00:00+07:00",
 
+  /** An empty address hides the line; the map link carries the directions. */
   venue: {
-    th: { name: "ชื่อสถานที่จัดงาน", address: "ที่อยู่สถานที่จัดงาน" },
-    en: { name: "Venue name", address: "Venue address" },
+    th: { name: "เดอะ กลาส เฮาส์ นายเลิศ ปาร์ค", address: "" },
+    en: { name: "The Glass House, Nai Lert Park", address: "" },
   },
 
   /** Google Maps share link, shown as a "get directions" button. */
-  mapUrl: "https://maps.google.com/",
+  mapUrl: "https://maps.app.goo.gl/5YVrLWsZ3ocuZgia8",
 
   dressCode: {
     th: { title: "การแต่งกาย", detail: "ชุดสุภาพ โทนสีครีม ชมพูอ่อน หรือฟ้าอ่อน" },

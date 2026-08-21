@@ -2,8 +2,11 @@ import * as THREE from "three";
 import {
   ALL_SEATS,
   DIMS,
+  APPROACH,
   ENTRANCE,
+  GATE,
   HALL,
+  OUTSIDE_DEPTH,
   PROPS,
   TABLES,
   longTableLength,
@@ -109,13 +112,21 @@ function distanceToRect(
  */
 export function isBlocked(x: number, z: number, margin = 0): boolean {
   const wall = WALL_MARGIN + margin;
-  if (
-    x < HALL.minX + wall ||
-    x > HALL.maxX - wall ||
-    z < HALL.minZ + wall ||
-    z > HALL.maxZ - wall
-  ) {
+
+  if (x < HALL.minX + wall || x > HALL.maxX - wall || z < HALL.minZ + wall) {
     return true;
+  }
+
+  // Beyond the south wall is open ground — the walk starts out there, so it
+  // must not read as solid.
+  if (z > HALL.maxZ) return z > HALL.maxZ + OUTSIDE_DEPTH;
+
+  // The south wall itself has a doorway in it. Treating the whole wall as solid
+  // would make the threshold impassable, which is where every guest enters.
+  if (z > HALL.maxZ - wall) {
+    const inDoorway =
+      Math.abs(x - GATE.center.x) <= GATE.width / 2 - BODY - margin;
+    if (!inDoorway) return true;
   }
 
   const tableClearance = TABLE_CLEARANCE + margin;
@@ -138,6 +149,12 @@ export function isBlocked(x: number, z: number, margin = 0): boolean {
   }
 
   for (const prop of Object.values(PROPS)) {
+    if (prop.shape === "round") {
+      if (Math.hypot(x - prop.center.x, z - prop.center.z) < prop.width / 2 + tableClearance) {
+        return true;
+      }
+      continue;
+    }
     const d = distanceToRect(
       x,
       z,
@@ -363,10 +380,48 @@ export interface WalkPath {
   status: "ok" | "unsmoothed" | "unreachable";
 }
 
+/**
+ * The arrival, before the walk proper.
+ *
+ * A guest stands outside for a moment, the doors open, and only then do they
+ * step through. Timings live here so the camera and the doors stay in step
+ * without either owning the other's clock.
+ */
+export const INTRO = {
+  /** When the doors start to swing, measured from the start. */
+  gateOpensAtMs: 800,
+  /** How long the guest stands still before setting off. */
+  waitMs: 2000,
+} as const;
+
+/**
+ * Everything before the walk begins — which is now only the pause outside.
+ *
+ * The walk-in used to be a separate phase that slid the camera from outside to
+ * the threshold, and only then handed over to the route. That made two
+ * different motions with a seam between them. The route now starts outside
+ * instead, so stepping through the doorway is part of the same walk, with the
+ * same gait and the same speed curve.
+ */
+export const INTRO_MS = INTRO.waitMs;
+
+/**
+ * How far ahead the gaze rests while walking, in metres.
+ *
+ * Shared with the arrival so both look at the same point at the moment they
+ * hand over — the seam is invisible only if they agree exactly.
+ */
+export const LOOK_AHEAD = 2.4;
+
+/** The gaze sits slightly below eye level, as a walking person's does. */
+export const LOOK_DROP = 0.1;
+
 /** Comfortable indoor walking speed, in metres per second. */
-const WALK_SPEED = 1.35;
+// A shade above an average stroll. The route now includes the approach from
+// outside, so a leisurely pace put the far tables past 18 s.
+const WALK_SPEED = 1.45;
 const MIN_DURATION_MS = 5000;
-const MAX_DURATION_MS = 16000;
+const MAX_DURATION_MS = 15000;
 
 export function walkDurationMs(length: number): number {
   return Math.min(
@@ -438,7 +493,11 @@ export function buildWalkPath(seat: Seat): WalkPath {
   if (!route || route.length === 0) {
     // Should not happen for any seat on this plan, but a guest must still get
     // *something* rather than a frozen camera.
-    const waypoints = [{ x: ENTRANCE.x, z: ENTRANCE.z }, goalPoint];
+    const waypoints = [
+      { x: GATE.center.x, z: APPROACH.z },
+      { x: ENTRANCE.x, z: ENTRANCE.z },
+      goalPoint,
+    ];
     return {
       curve: toCurve(waypoints),
       waypoints,
@@ -450,14 +509,27 @@ export function buildWalkPath(seat: Seat): WalkPath {
 
   const raw = route.map((c) => ({ x: xOf(c.col), z: zOf(c.row) }));
 
+  /*
+   * The walk begins outside and comes in through the doorway.
+   *
+   * Two lead-in points, not one: with a single point the spline is free to bow
+   * sideways between the approach and wherever the indoor route heads next,
+   * which would clip the door frame. A second point in line with the opening
+   * pins the curve straight through it.
+   */
+  const leadIn: Vec2[] = [
+    { x: GATE.center.x, z: APPROACH.z },
+    { x: GATE.center.x, z: GATE.center.z + 1.4 },
+  ];
+
   const anchor = (points: Vec2[]): Vec2[] => {
     const copy = [...points];
-    // Anchor the ends to the true positions rather than cell centres.
+    // Anchor the indoor end to the true position rather than a cell centre.
     copy[0] = { x: ENTRANCE.x, z: ENTRANCE.z };
     if (hasLineOfSight(copy[copy.length - 1], goalPoint)) {
       copy[copy.length - 1] = goalPoint;
     }
-    return copy;
+    return [...leadIn, ...copy];
   };
 
   /*
