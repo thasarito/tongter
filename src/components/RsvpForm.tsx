@@ -3,8 +3,8 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { submitRsvp, type RsvpFormState } from "@/app/_actions/submit-rsvp";
-import { t, type Lang } from "@/lib/i18n";
-import type { RsvpFormView, RsvpGuestView } from "@/lib/views";
+import { t, type Lang } from "@/shared/i18n";
+import type { RsvpFormView, RsvpGuestView } from "@/shared/views";
 
 /**
  * The RSVP form.

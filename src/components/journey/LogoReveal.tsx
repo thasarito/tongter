@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { event } from "@/lib/config";
-import { formatEventDate, pick, type Lang } from "@/lib/i18n";
+import { formatEventDate, pick, type Lang } from "@/shared/i18n";
 
 /**
  * The wedding logo, held on screen for a beat before the invitation.

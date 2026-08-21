@@ -1,7 +1,7 @@
 import Link from "next/link";
 import StatusNotice from "./StatusNotice";
-import { t, type Lang } from "@/lib/i18n";
-import type { SnapshotStatus } from "@/lib/types";
+import { t, type Lang } from "@/shared/i18n";
+import type { SnapshotStatus } from "@/shared/types";
 
 /** Shown when a token does not resolve to a group. */
 export default function NotFoundCard({

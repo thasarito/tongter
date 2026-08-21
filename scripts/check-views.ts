@@ -12,24 +12,24 @@ import {
   parseDietary,
   serializeDietary,
   type DietaryOption,
-} from "../src/lib/dietary.ts";
+} from "../src/shared/dietary.ts";
 import {
   fields,
   fromRecord,
   parseRsvpForm,
   toSheetEntries,
   MAX_TEXT,
-} from "../src/lib/rsvp-form.ts";
-import { buildMockDataset } from "../src/lib/mock-dataset.ts";
-import { guestsInGroup } from "../src/lib/guest-list.ts";
+} from "../src/shared/rsvp-form.ts";
+import { buildMockDataset } from "../src/shared/mock-dataset.ts";
+import { guestsInGroup } from "../src/shared/guest-list.ts";
 import {
   buildAdminView,
   buildQrSheetView,
   buildRsvpView,
   buildSearchView,
   buildSeatView,
-} from "../src/lib/views/build.ts";
-import type { Snapshot } from "../src/lib/types.ts";
+} from "../src/shared/views/build.ts";
+import type { Snapshot } from "../src/shared/types.ts";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {

@@ -3,7 +3,7 @@ import SeatReveal from "@/components/SeatReveal";
 import SiteHeader from "@/components/SiteHeader";
 import { getLang } from "@/lib/lang";
 import { getSnapshot } from "@/lib/sheets";
-import { buildSeatView } from "@/lib/views";
+import { buildSeatView } from "@/shared/views";
 
 export const metadata = { title: "Your seat", robots: { index: false } };
 

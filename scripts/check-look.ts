@@ -16,8 +16,8 @@ import {
   basePitchAt,
   ease,
   settleProgress,
-} from "../src/lib/seated-look.ts";
-import { EYE_HEIGHT, GOAL_STANDOFF, SEAT_LOOK_HEIGHT } from "../src/lib/walk-path.ts";
+} from "../src/shared/seated-look.ts";
+import { EYE_HEIGHT, GOAL_STANDOFF, SEAT_LOOK_HEIGHT } from "../src/shared/walk-path.ts";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {

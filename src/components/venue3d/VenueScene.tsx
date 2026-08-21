@@ -20,7 +20,7 @@ import {
   longTableLength,
   seatKey,
   seatOutward,
-} from "@/lib/venue";
+} from "@/shared/venue";
 
 /**
  * The Glass House at Nai Lert Park.

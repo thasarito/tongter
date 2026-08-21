@@ -5,7 +5,7 @@ import { isAdmin, isAdminConfigured } from "@/lib/admin-auth";
 import { allowDietaryOther, dietaryOptions } from "@/lib/config";
 import { getLang } from "@/lib/lang";
 import { getSnapshot } from "@/lib/sheets";
-import { buildAdminView } from "@/lib/views";
+import { buildAdminView } from "@/shared/views";
 
 export const metadata = { title: "Admin", robots: { index: false } };
 

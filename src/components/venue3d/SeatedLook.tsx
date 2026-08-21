@@ -9,7 +9,7 @@ import {
   basePitchAt,
   ease,
   type LookOffset,
-} from "@/lib/seated-look";
+} from "@/shared/seated-look";
 
 /**
  * Look around from your chair.

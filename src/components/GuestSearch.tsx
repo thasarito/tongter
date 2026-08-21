@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { t, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/shared/i18n";
 
 /**
  * Search input for the guest list.

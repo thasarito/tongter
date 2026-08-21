@@ -13,13 +13,13 @@
 import { readFileSync } from "node:fs";
 import { google } from "googleapis";
 import { loadEnv, resolveCredentials } from "./script-env.ts";
-import { isValidSeat, TOTAL_SEATS } from "../src/lib/venue.ts";
+import { isValidSeat, TOTAL_SEATS } from "../src/shared/venue.ts";
 import {
   GROUP_HEADERS,
   GUEST_HEADERS,
   RSVP_HEADERS,
   SHEET_TABS,
-} from "../src/lib/types.ts";
+} from "../src/shared/types.ts";
 
 loadEnv();
 

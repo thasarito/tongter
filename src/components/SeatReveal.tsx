@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import SeatMap2D from "./SeatMap2D";
 import StatusNotice from "./StatusNotice";
-import { t, type Lang } from "@/lib/i18n";
-import type { SeatView } from "@/lib/views";
+import { t, type Lang } from "@/shared/i18n";
+import type { SeatView } from "@/shared/views";
 
 // three.js is ~600 kB — keep it out of the initial bundle and off the critical
 // path for guests who only ever open the invitation.

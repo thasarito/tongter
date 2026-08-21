@@ -17,10 +17,10 @@ import {
   getIdentitySnapshot,
   rememberGuest,
   subscribeIdentity,
-} from "@/lib/identity";
-import { t, type Lang } from "@/lib/i18n";
-import type { Side } from "@/lib/types";
-import type { JourneyIntroView, RsvpGuestView } from "@/lib/views";
+} from "@/shared/identity";
+import { t, type Lang } from "@/shared/i18n";
+import type { Side } from "@/shared/types";
+import type { JourneyIntroView, RsvpGuestView } from "@/shared/views";
 import Envelope from "./Envelope";
 import GateTransition from "./GateTransition";
 import InvitationCard from "./InvitationCard";

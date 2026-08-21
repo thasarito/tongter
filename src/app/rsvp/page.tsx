@@ -2,10 +2,10 @@ import Link from "next/link";
 import GuestSearch from "@/components/GuestSearch";
 import SiteHeader from "@/components/SiteHeader";
 import StatusNotice from "@/components/StatusNotice";
-import { t } from "@/lib/i18n";
+import { t } from "@/shared/i18n";
 import { getLang } from "@/lib/lang";
 import { getSnapshot } from "@/lib/sheets";
-import { buildSearchView } from "@/lib/views";
+import { buildSearchView } from "@/shared/views";
 
 export const metadata = { title: "RSVP" };
 

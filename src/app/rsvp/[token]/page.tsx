@@ -3,7 +3,7 @@ import SiteHeader from "@/components/SiteHeader";
 import GuestJourney from "@/components/journey/GuestJourney";
 import { displayName, findGroupByToken, getSnapshot, guestsInGroup } from "@/lib/sheets";
 import { getLang } from "@/lib/lang";
-import { buildJourneyIntroView } from "@/lib/views";
+import { buildJourneyIntroView } from "@/shared/views";
 
 export const metadata = { title: "RSVP", robots: { index: false } };
 

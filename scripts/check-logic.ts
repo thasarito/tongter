@@ -2,17 +2,17 @@
  * Exercises the guest-list logic that decides who sits where and whose answer
  * counts. Run: pnpm check:logic
  */
-import { buildMockDataset } from "../src/lib/mock-dataset.ts";
+import { buildMockDataset } from "../src/shared/mock-dataset.ts";
 import {
   displayName,
   findGroupByToken,
   guestsInGroup,
   latestRsvpByGuest,
   parseAttending,
-} from "../src/lib/guest-list.ts";
-import { searchGuests } from "../src/lib/search.ts";
-import { isValidSeat } from "../src/lib/venue.ts";
-import type { RsvpRow, Snapshot } from "../src/lib/types.ts";
+} from "../src/shared/guest-list.ts";
+import { searchGuests } from "../src/shared/search.ts";
+import { isValidSeat } from "../src/shared/venue.ts";
+import type { RsvpRow, Snapshot } from "../src/shared/types.ts";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {

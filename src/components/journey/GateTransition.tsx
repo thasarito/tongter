@@ -1,7 +1,7 @@
 "use client";
 
 import { event } from "@/lib/config";
-import { pick, type Lang } from "@/lib/i18n";
+import { pick, type Lang } from "@/shared/i18n";
 
 /**
  * Two doors that swing shut over the whole screen when the RSVP is sent.

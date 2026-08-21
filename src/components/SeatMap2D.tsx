@@ -1,4 +1,4 @@
-import { buildWalkPath } from "@/lib/walk-path";
+import { buildWalkPath } from "@/shared/walk-path";
 import {
   ALL_SEATS,
   DIMS,
@@ -10,7 +10,7 @@ import {
   longTableLength,
   seatKey,
   type TableDef,
-} from "@/lib/venue";
+} from "@/shared/venue";
 
 export interface SeatOccupant {
   name: string;

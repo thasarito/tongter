@@ -1,8 +1,8 @@
 "use client";
 
 import { event } from "@/lib/config";
-import { pick, t, type Lang } from "@/lib/i18n";
-import type { Side } from "@/lib/types";
+import { pick, t, type Lang } from "@/shared/i18n";
+import type { Side } from "@/shared/types";
 
 /**
  * Bride's side or groom's side.

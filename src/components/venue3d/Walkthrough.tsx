@@ -7,8 +7,8 @@ import LookDebug, { type LookDebugCounters } from "./LookDebug";
 import SeatedLook, { type DragDelta } from "./SeatedLook";
 import WalkCamera from "./WalkCamera";
 import VenueScene, { type Highlight } from "./VenueScene";
-import { APPROACH } from "@/lib/venue";
-import { EYE_HEIGHT } from "@/lib/walk-path";
+import { APPROACH } from "@/shared/venue";
+import { EYE_HEIGHT } from "@/shared/walk-path";
 
 export interface WalkthroughProps {
   highlight: Highlight;

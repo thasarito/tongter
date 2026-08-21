@@ -3,7 +3,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import type * as THREE from "three";
-import { GATE as DOORWAY } from "@/lib/venue";
+import { GATE as DOORWAY } from "@/shared/venue";
 
 /**
  * A pair of doors at the entrance that swing open as the walk begins.

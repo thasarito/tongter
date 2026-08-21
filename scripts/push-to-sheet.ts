@@ -15,14 +15,14 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { google } from "googleapis";
 import { loadEnv, resolveCredentials } from "./script-env.ts";
-import { TABLES, seatsForTable } from "../src/lib/venue.ts";
-import { buildMockDataset } from "../src/lib/mock-dataset.ts";
+import { TABLES, seatsForTable } from "../src/shared/venue.ts";
+import { buildMockDataset } from "../src/shared/mock-dataset.ts";
 import {
   GROUP_HEADERS,
   GUEST_HEADERS,
   RSVP_HEADERS,
   SHEET_TABS,
-} from "../src/lib/types.ts";
+} from "../src/shared/types.ts";
 
 const TOKEN_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 const usedTokens = new Set<string>();

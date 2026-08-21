@@ -7,7 +7,7 @@ import {
   parseRsvpForm,
   toSheetEntries,
   type RsvpErrorKey,
-} from "@/lib/rsvp-form";
+} from "@/shared/rsvp-form";
 import { appendRsvp, findGroupByToken, getSnapshot, guestsInGroup } from "@/lib/sheets";
 
 export interface RsvpFormState {

@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { setLang } from "@/app/_actions/set-lang";
-import { t, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/shared/i18n";
 
 /**
  * Two-language switch. Writes a cookie server-side and refreshes so every

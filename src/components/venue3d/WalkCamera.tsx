@@ -11,8 +11,8 @@ import {
   LOOK_DROP,
   buildWalkPath,
   walkDurationMs,
-} from "@/lib/walk-path";
-import { getSeat } from "@/lib/venue";
+} from "@/shared/walk-path";
+import { getSeat } from "@/shared/venue";
 
 /**
  * Walks the camera from the entrance to a guest's seat.

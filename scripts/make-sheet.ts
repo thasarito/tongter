@@ -20,14 +20,14 @@
 import { randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import ExcelJS from "exceljs";
-import { TABLES, seatsForTable } from "../src/lib/venue.ts";
-import { buildMockDataset } from "../src/lib/mock-dataset.ts";
+import { TABLES, seatsForTable } from "../src/shared/venue.ts";
+import { buildMockDataset } from "../src/shared/mock-dataset.ts";
 import {
   GROUP_HEADERS,
   GUEST_HEADERS,
   RSVP_HEADERS,
   SHEET_TABS,
-} from "../src/lib/types.ts";
+} from "../src/shared/types.ts";
 
 const OUT_DIR = "out/sheet";
 

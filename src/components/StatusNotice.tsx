@@ -1,4 +1,4 @@
-import { t, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/shared/i18n";
 import type { SnapshotStatus } from "@/lib/sheets";
 
 /**

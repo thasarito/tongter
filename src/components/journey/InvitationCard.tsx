@@ -2,7 +2,7 @@
 
 import Countdown from "@/components/Countdown";
 import { event } from "@/lib/config";
-import { formatEventDate, formatEventTime, pick, t, type Lang } from "@/lib/i18n";
+import { formatEventDate, formatEventTime, pick, t, type Lang } from "@/shared/i18n";
 
 /**
  * The invitation itself: who, when, where, what to wear.

@@ -16,8 +16,8 @@ import {
   EYE_HEIGHT,
   LOOK_AHEAD,
   LOOK_DROP,
-} from "../src/lib/walk-path.ts";
-import { ALL_SEATS, APPROACH, GATE, HALL } from "../src/lib/venue.ts";
+} from "../src/shared/walk-path.ts";
+import { ALL_SEATS, APPROACH, GATE, HALL } from "../src/shared/venue.ts";
 
 let failures = 0;
 function fail(message: string) {

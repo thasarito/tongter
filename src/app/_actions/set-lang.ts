@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { LANG_COOKIE, isLang } from "@/lib/i18n";
+import { LANG_COOKIE, isLang } from "@/shared/i18n";
 
 /** Persists the language choice for a year and re-renders the current page. */
 export async function setLang(next: string, pathname: string) {

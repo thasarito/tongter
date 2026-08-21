@@ -1,9 +1,9 @@
 "use server";
 
 import { allowDietaryOther, dietaryOptions } from "@/lib/config";
-import { isLang, type Lang } from "@/lib/i18n";
+import { isLang, type Lang } from "@/shared/i18n";
 import { getSnapshot } from "@/lib/sheets";
-import { buildRsvpView, type RsvpFormView } from "@/lib/views";
+import { buildRsvpView, type RsvpFormView } from "@/shared/views";
 
 export interface PersonFlow {
   view: RsvpFormView;

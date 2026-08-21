@@ -1,7 +1,7 @@
 "use client";
 
-import { t, type Lang } from "@/lib/i18n";
-import type { DietaryOptionView, RsvpGuestView } from "@/lib/views";
+import { t, type Lang } from "@/shared/i18n";
+import type { DietaryOptionView, RsvpGuestView } from "@/shared/views";
 
 /**
  * One person's RSVP: coming or not, what they can eat, and a note.

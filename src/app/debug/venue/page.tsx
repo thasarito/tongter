@@ -1,5 +1,5 @@
 import SeatMap2D from "@/components/SeatMap2D";
-import { ALL_SEATS, HALL_DEPTH, HALL_WIDTH, TABLES, TOTAL_SEATS } from "@/lib/venue";
+import { ALL_SEATS, HALL_DEPTH, HALL_WIDTH, TABLES, TOTAL_SEATS } from "@/shared/venue";
 
 // Geometry debug view. Deliberately renders no guest names, so it is safe to
 // leave reachable — compare it against docs/seat_plan.jpg by eye.

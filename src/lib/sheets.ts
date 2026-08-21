@@ -2,7 +2,7 @@ import "server-only";
 
 import { google, type sheets_v4 } from "googleapis";
 import { serverEnv } from "./config";
-import { parseAttending } from "./guest-list";
+import { parseAttending } from "@/shared/guest-list";
 import { isMockMode, mockAppend, mockSnapshot } from "./mock-data";
 import {
   SHEET_TABS,
@@ -11,8 +11,8 @@ import {
   type RsvpRow,
   type Side,
   type Snapshot,
-} from "./types";
-import { isValidSeat } from "./venue";
+} from "@/shared/types";
+import { isValidSeat } from "@/shared/venue";
 
 /**
  * Google Sheets is the only store — there is no database.
@@ -38,8 +38,8 @@ export type {
   Side,
   Snapshot,
   SnapshotStatus,
-} from "./types";
-export { GROUP_HEADERS, GUEST_HEADERS, RSVP_HEADERS, SHEET_TABS } from "./types";
+} from "@/shared/types";
+export { GROUP_HEADERS, GUEST_HEADERS, RSVP_HEADERS, SHEET_TABS } from "@/shared/types";
 
 // Pure snapshot queries live in guest-list.ts so the check scripts can run them
 // without this module's server-only and googleapis imports.
@@ -50,7 +50,7 @@ export {
   guestsInGroup,
   latestRsvpByGuest,
   parseAttending,
-} from "./guest-list";
+} from "@/shared/guest-list";
 
 const CACHE_TTL_MS = 45_000;
 

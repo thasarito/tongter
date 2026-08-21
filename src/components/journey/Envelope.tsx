@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { t, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/shared/i18n";
 
 /**
  * The opening beat: a rose envelope that a guest taps to break the seal.

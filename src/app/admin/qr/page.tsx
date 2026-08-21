@@ -5,7 +5,7 @@ import { isAdmin, isAdminConfigured } from "@/lib/admin-auth";
 import { event, siteUrl } from "@/lib/config";
 import { getLang } from "@/lib/lang";
 import { getSnapshot } from "@/lib/sheets";
-import { buildQrSheetView } from "@/lib/views";
+import { buildQrSheetView } from "@/shared/views";
 
 export const metadata = { title: "QR cards", robots: { index: false } };
 

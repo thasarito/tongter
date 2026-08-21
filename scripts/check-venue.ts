@@ -12,7 +12,7 @@ import {
   getSeat,
   longTableLength,
   seatOutward,
-} from "../src/lib/venue.ts";
+} from "../src/shared/venue.ts";
 
 const EXPECTED: Record<number, number> = {
   1: 24,

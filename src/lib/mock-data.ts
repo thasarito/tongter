@@ -1,5 +1,5 @@
-import { buildMockDataset } from "./mock-dataset";
-import type { RsvpRow, Snapshot } from "./types";
+import { buildMockDataset } from "@/shared/mock-dataset";
+import type { RsvpRow, Snapshot } from "@/shared/types";
 
 /**
  * MOCK_SHEET=1 swaps the Google Sheet for generated fixture data.

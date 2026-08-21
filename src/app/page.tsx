@@ -1,7 +1,7 @@
 import GuestJourney from "@/components/journey/GuestJourney";
 import { getLang } from "@/lib/lang";
 import { getSnapshot } from "@/lib/sheets";
-import { buildJourneyIntroView } from "@/lib/views";
+import { buildJourneyIntroView } from "@/shared/views";
 
 /**
  * The full ceremony: envelope, logo, invitation, then the RSVP flow.

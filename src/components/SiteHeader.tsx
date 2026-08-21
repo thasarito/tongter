@@ -1,7 +1,7 @@
 import Link from "next/link";
 import LangToggle from "./LangToggle";
 import { event } from "@/lib/config";
-import { pick, type Lang } from "@/lib/i18n";
+import { pick, type Lang } from "@/shared/i18n";
 
 export default function SiteHeader({ lang }: { lang: Lang }) {
   return (

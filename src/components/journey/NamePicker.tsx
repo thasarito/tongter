@@ -1,8 +1,8 @@
 "use client";
 
 import { useDeferredValue, useMemo, useState } from "react";
-import { t, type Lang } from "@/lib/i18n";
-import { searchGuests, type SearchableGuest } from "@/lib/search";
+import { t, type Lang } from "@/shared/i18n";
+import { searchGuests, type SearchableGuest } from "@/shared/search";
 
 /**
  * Find yourself among the guests.

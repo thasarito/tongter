@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { t, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/shared/i18n";
 
 function parts(msRemaining: number) {
   const total = Math.max(0, Math.floor(msRemaining / 1000));

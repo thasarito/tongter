@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
-import { DEFAULT_LANG, LANG_COOKIE, isLang, type Lang } from "./i18n";
+import { DEFAULT_LANG, LANG_COOKIE, isLang, type Lang } from "@/shared/i18n";
 
 /** Reads the language cookie in a server component. */
 export async function getLang(): Promise<Lang> {

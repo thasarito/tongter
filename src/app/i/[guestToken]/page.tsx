@@ -4,7 +4,7 @@ import GuestJourney from "@/components/journey/GuestJourney";
 import { allowDietaryOther, dietaryOptions } from "@/lib/config";
 import { getLang } from "@/lib/lang";
 import { findGuestByToken, getSnapshot } from "@/lib/sheets";
-import { buildJourneyIntroView, buildRsvpView } from "@/lib/views";
+import { buildJourneyIntroView, buildRsvpView } from "@/shared/views";
 
 export const metadata = { title: "RSVP", robots: { index: false } };
 
