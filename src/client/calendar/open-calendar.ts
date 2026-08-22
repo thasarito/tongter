@@ -3,7 +3,7 @@ import type { Lang } from "@/shared/i18n";
 const LIFF_SDK_SRC = "https://static.line-scdn.net/liff/edge/2/sdk.js";
 const LINE_USER_AGENT = /\bLine\/[\d.]+/i;
 
-export type CalendarKind = "google" | "file";
+export type CalendarKind = "google" | "apple";
 export type CalendarRuntime = "liff" | "line-in-app" | "external";
 
 export interface LiffApi {
@@ -58,9 +58,7 @@ function loadLiffSdk(): Promise<LiffApi> {
 
 export function calendarEndpointHref(kind: CalendarKind, lang: Lang): string {
   const endpoint =
-    kind === "google"
-      ? "/api/calendar/google"
-      : "/api/calendar/wedding.ics";
+    kind === "google" ? "/api/calendar/google" : "/calendar/apple";
   const params = new URLSearchParams({
     lang,
     openExternalBrowser: "1",
