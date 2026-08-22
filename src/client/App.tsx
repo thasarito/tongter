@@ -1,7 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router";
 import { LanguageProvider } from "./app/LanguageProvider";
 import {
-  AppleCalendarRoute,
   GroupInviteRoute,
   HomeRoute,
   PersonalInviteRoute,
@@ -24,7 +23,6 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<HomeRoute />} />
-          <Route path="/calendar/apple" element={<AppleCalendarRoute />} />
           <Route path="/i/:guestToken" element={<PersonalInviteRoute />} />
           <Route path="/rsvp" element={<SearchRoute />} />
           <Route path="/rsvp/:token" element={<GroupInviteRoute />} />
