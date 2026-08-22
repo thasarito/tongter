@@ -386,7 +386,8 @@ check("seats total matches the plan", admin.totals.seatsTotal === 170);
 const qr = buildQrSheetView(snapshot, "th", "https://example.test");
 check("a QR card per group", qr.cards.length === dataset.groups.length);
 check("card urls point at the group token",
-  qr.cards.every((c) => c.url === `https://example.test/rsvp/${c.token}`));
+  qr.cards.every((c) =>
+    c.url === `https://example.test/rsvp/${c.token}?openExternalBrowser=1`));
 check("cards list their members", qr.cards.every((c) => c.memberNames.length > 0));
 
 console.log(
