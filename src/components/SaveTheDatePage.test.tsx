@@ -62,7 +62,7 @@ describe("SaveTheDatePage viewport behavior", () => {
     ).toHaveAttribute("aria-hidden", "false");
   });
 
-  it("routes Google through its API and Apple through a browser handoff page", () => {
+  it("routes Google through its API and Apple back through the Save the Date page", () => {
     renderPage();
     openCalendarChoices();
 
@@ -77,12 +77,12 @@ describe("SaveTheDatePage viewport behavior", () => {
     );
     expect(apple).toHaveAttribute(
       "href",
-      "/calendar/apple?lang=en&openExternalBrowser=1",
+      "/?calendar=apple&lang=en&openExternalBrowser=1",
     );
     expect(apple).not.toHaveAttribute("download");
   });
 
-  it("uses LIFF to open the Apple handoff page outside the LIFF browser", async () => {
+  it("uses LIFF to open the Apple Save the Date mode outside the LIFF browser", async () => {
     vi.stubEnv("VITE_LIFF_ID", "1234567890-test");
     const liff: TestLiff = {
       init: vi.fn(async () => undefined),
@@ -101,7 +101,7 @@ describe("SaveTheDatePage viewport behavior", () => {
     );
 
     expect(liff.openWindow).toHaveBeenCalledWith({
-      url: "http://localhost:3000/calendar/apple?lang=en&openExternalBrowser=1",
+      url: "http://localhost:3000/?calendar=apple&lang=en&openExternalBrowser=1",
       external: true,
     });
   });
