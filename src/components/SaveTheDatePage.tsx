@@ -11,7 +11,21 @@ import LangToggle from "@/components/LangToggle";
 import { event } from "@/shared/event-config";
 import { pick, t, type Lang } from "@/shared/i18n";
 
+const CALENDAR_FILENAME = "warissara-thasarit-wedding.ics";
 const LOGO_SRC = "/logo.svg";
+
+const APPLE_DOWNLOAD_COPY = {
+  th: {
+    action: "ดาวน์โหลดไฟล์ปฏิทิน",
+    instructions:
+      "หลังดาวน์โหลด ให้เปิดไฟล์ .ics จากรายการดาวน์โหลดของ Safari แล้วเลือกเพิ่มกิจกรรมทั้งหมด",
+  },
+  en: {
+    action: "Download calendar file",
+    instructions:
+      "After downloading, open the .ics file from Safari Downloads, then choose Add All.",
+  },
+} as const;
 
 function CalendarIcon() {
   return (
@@ -108,10 +122,17 @@ function FlowerLineArt({ position }: { position: "top" | "bottom" }) {
   );
 }
 
-export default function SaveTheDatePage({ lang }: { lang: Lang }) {
+export default function SaveTheDatePage({
+  lang,
+  calendarMode = "chooser",
+}: {
+  lang: Lang;
+  calendarMode?: "chooser" | "apple";
+}) {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [liff, setLiff] = useState<LiffApi | null>(null);
   const copy = t(lang).saveDate;
+  const appleCopy = APPLE_DOWNLOAD_COPY[lang];
   const conjunction = t(lang).common.and;
   const coupleName = `Warissara ${conjunction} Thasarit`;
   const location = pick(lang, event.saveTheDateVenue);
@@ -119,10 +140,12 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
     () => calendarEndpointHref("google", lang),
     [lang],
   );
-  const calendarFileHref = useMemo(
+  const appleHref = useMemo(
     () => calendarEndpointHref("file", lang),
     [lang],
   );
+  const downloadHref = `/api/calendar/download?lang=${lang}`;
+  const appleDownloadMode = calendarMode === "apple";
 
   useEffect(() => {
     const html = document.documentElement;
@@ -225,78 +248,100 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
             </p>
 
             <div className="relative mt-6">
-              <button
-                type="button"
-                aria-expanded={calendarOpen}
-                aria-controls="calendar-options"
-                onClick={() => setCalendarOpen((open) => !open)}
-                className="save-date-calendar-button group flex w-full items-center justify-center gap-3 rounded-full px-6 py-3.5 text-sm font-medium tracking-wide shadow-[0_12px_35px_rgba(44,45,37,0.2)] transition duration-300 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/80"
-              >
-                <CalendarIcon />
-                <span>{copy.addToCalendar}</span>
-                <span
-                  className={`transition-transform duration-300 ${
-                    calendarOpen ? "rotate-90" : ""
-                  }`}
-                >
-                  <ArrowIcon />
-                </span>
-              </button>
+              {appleDownloadMode ? (
+                <>
+                  <a
+                    href={downloadHref}
+                    download={CALENDAR_FILENAME}
+                    aria-label={appleCopy.action}
+                    className="save-date-calendar-button group flex w-full items-center justify-center gap-3 rounded-full px-6 py-3.5 text-sm font-medium tracking-wide shadow-[0_12px_35px_rgba(44,45,37,0.2)] transition duration-300 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/80"
+                  >
+                    <CalendarIcon />
+                    <span>{appleCopy.action}</span>
+                    <ArrowIcon />
+                  </a>
+                  <p className="mx-auto mt-3 max-w-xs text-[0.68rem] leading-5 text-white/60 sm:text-xs">
+                    {appleCopy.instructions}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    aria-expanded={calendarOpen}
+                    aria-controls="calendar-options"
+                    onClick={() => setCalendarOpen((open) => !open)}
+                    className="save-date-calendar-button group flex w-full items-center justify-center gap-3 rounded-full px-6 py-3.5 text-sm font-medium tracking-wide shadow-[0_12px_35px_rgba(44,45,37,0.2)] transition duration-300 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/80"
+                  >
+                    <CalendarIcon />
+                    <span>{copy.addToCalendar}</span>
+                    <span
+                      className={`transition-transform duration-300 ${
+                        calendarOpen ? "rotate-90" : ""
+                      }`}
+                    >
+                      <ArrowIcon />
+                    </span>
+                  </button>
 
-              <div
-                id="calendar-options"
-                role="dialog"
-                aria-label={copy.chooseCalendar}
-                aria-hidden={!calendarOpen}
-                className={`save-date-options ${
-                  calendarOpen ? "is-open" : ""
-                }`}
-              >
-                <div className="save-date-options-inner">
-                  <div className="rounded-[1.35rem] border border-white/20 bg-[#6f725f]/95 p-3 text-left shadow-2xl backdrop-blur-xl">
-                    <p className="px-3 pb-2 pt-1 text-[0.62rem] uppercase tracking-[0.2em] text-white/55">
-                      {copy.chooseCalendar}
-                    </p>
-                    <a
-                      href={googleHref}
-                      onClick={(event) =>
-                        handoffCalendarClick(event, googleHref, liff)
-                      }
-                      tabIndex={calendarOpen ? 0 : -1}
-                      aria-label="Google Calendar"
-                      className="flex items-center justify-between rounded-xl px-3 py-3 text-sm text-white transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white/80"
-                    >
-                      <span>
-                        <span className="block font-medium">Google Calendar</span>
-                        <span className="mt-0.5 block text-[0.68rem] text-white/55">
-                          {copy.googleHint}
-                        </span>
-                      </span>
-                      <ArrowIcon />
-                    </a>
-                    <div className="mx-3 h-px bg-white/12" />
-                    <a
-                      href={calendarFileHref}
-                      onClick={(event) =>
-                        handoffCalendarClick(event, calendarFileHref, liff)
-                      }
-                      tabIndex={calendarOpen ? 0 : -1}
-                      aria-label="Apple Calendar / Outlook"
-                      className="flex items-center justify-between rounded-xl px-3 py-3 text-sm text-white transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white/80"
-                    >
-                      <span>
-                        <span className="block font-medium">
-                          Apple Calendar / Outlook
-                        </span>
-                        <span className="mt-0.5 block text-[0.68rem] text-white/55">
-                          {copy.fileHint}
-                        </span>
-                      </span>
-                      <ArrowIcon />
-                    </a>
+                  <div
+                    id="calendar-options"
+                    role="dialog"
+                    aria-label={copy.chooseCalendar}
+                    aria-hidden={!calendarOpen}
+                    className={`save-date-options ${
+                      calendarOpen ? "is-open" : ""
+                    }`}
+                  >
+                    <div className="save-date-options-inner">
+                      <div className="rounded-[1.35rem] border border-white/20 bg-[#6f725f]/95 p-3 text-left shadow-2xl backdrop-blur-xl">
+                        <p className="px-3 pb-2 pt-1 text-[0.62rem] uppercase tracking-[0.2em] text-white/55">
+                          {copy.chooseCalendar}
+                        </p>
+                        <a
+                          href={googleHref}
+                          onClick={(event) =>
+                            handoffCalendarClick(event, googleHref, liff)
+                          }
+                          tabIndex={calendarOpen ? 0 : -1}
+                          aria-label="Google Calendar"
+                          className="flex items-center justify-between rounded-xl px-3 py-3 text-sm text-white transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white/80"
+                        >
+                          <span>
+                            <span className="block font-medium">
+                              Google Calendar
+                            </span>
+                            <span className="mt-0.5 block text-[0.68rem] text-white/55">
+                              {copy.googleHint}
+                            </span>
+                          </span>
+                          <ArrowIcon />
+                        </a>
+                        <div className="mx-3 h-px bg-white/12" />
+                        <a
+                          href={appleHref}
+                          onClick={(event) =>
+                            handoffCalendarClick(event, appleHref, liff)
+                          }
+                          tabIndex={calendarOpen ? 0 : -1}
+                          aria-label="Apple Calendar / Outlook"
+                          className="flex items-center justify-between rounded-xl px-3 py-3 text-sm text-white transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white/80"
+                        >
+                          <span>
+                            <span className="block font-medium">
+                              Apple Calendar / Outlook
+                            </span>
+                            <span className="mt-0.5 block text-[0.68rem] text-white/55">
+                              {copy.fileHint}
+                            </span>
+                          </span>
+                          <ArrowIcon />
+                        </a>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           </div>
         </div>
