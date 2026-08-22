@@ -11,6 +11,35 @@ test("serves the save-the-date landing and Worker API from one origin", async ({
   });
 
   await page.goto("/");
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
+    "content",
+    /viewport-fit=cover/,
+  );
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+    "content",
+    "#9c9d88",
+  );
+  expect(
+    await page.evaluate(
+      () => getComputedStyle(document.documentElement).backgroundColor,
+    ),
+  ).toBe("rgb(156, 157, 136)");
+
+  const fullBleedShell = await page.evaluate(() => {
+    const root = document.getElementById("root");
+    const stage = document.querySelector("main");
+    if (!root || !stage) throw new Error("Save the Date shell is missing");
+    return {
+      viewportHeight: window.innerHeight,
+      rootHeight: root.getBoundingClientRect().height,
+      stageTop: stage.getBoundingClientRect().top,
+    };
+  });
+  expect(fullBleedShell.stageTop).toBe(0);
+  expect(fullBleedShell.rootHeight).toBeGreaterThanOrEqual(
+    fullBleedShell.viewportHeight,
+  );
+
   await expect(
     page.getByRole("heading", { name: /Warissara.*Thasarit/i }),
   ).toBeVisible();
