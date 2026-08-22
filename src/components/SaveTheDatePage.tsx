@@ -6,6 +6,7 @@ import { event } from "@/shared/event-config";
 import { pick, t, type Lang } from "@/shared/i18n";
 
 const CALENDAR_FILE = "/warissara-thasarit-wedding.ics";
+const LOGO_SRC = "/logo.svg";
 
 function compactUtc(iso: string): string {
   return new Date(iso)
@@ -56,7 +57,11 @@ function ArrowIcon() {
       stroke="currentColor"
       strokeWidth="1.6"
     >
-      <path d="m6.5 4.5 5.5 5.5-5.5 5.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="m6.5 4.5 5.5 5.5-5.5 5.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -103,9 +108,18 @@ function FlowerLineArt({ position }: { position: "top" | "bottom" }) {
           pathLength="1"
           d="M218 225c38 45 54 94 42 148-45-34-61-83-42-148"
         />
-        <path pathLength="1" d="M206 212c9-8 21-7 29 1 8 9 7 22-2 30-9 7-22 6-29-3-7-9-6-20 2-28Z" />
-        <path pathLength="1" d="M86 102c42 19 74 44 102 78M231 45c-5 43-8 83-3 122M365 128c-46 11-86 31-118 59" />
-        <path pathLength="1" d="M49 262c48-9 92-8 135 5M363 298c-45-20-84-31-122-30" />
+        <path
+          pathLength="1"
+          d="M206 212c9-8 21-7 29 1 8 9 7 22-2 30-9 7-22 6-29-3-7-9-6-20 2-28Z"
+        />
+        <path
+          pathLength="1"
+          d="M86 102c42 19 74 44 102 78M231 45c-5 43-8 83-3 122M365 128c-46 11-86 31-118 59"
+        />
+        <path
+          pathLength="1"
+          d="M49 262c48-9 92-8 135 5M363 298c-45-20-84-31-122-30"
+        />
       </g>
     </svg>
   );
@@ -115,6 +129,7 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const copy = t(lang).saveDate;
   const conjunction = t(lang).common.and;
+  const coupleName = `Warissara ${conjunction} Thasarit`;
   const location = pick(lang, event.saveTheDateVenue);
   const googleHref = useMemo(() => googleCalendarHref(lang), [lang]);
 
@@ -139,7 +154,10 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
             <p className="text-[0.68rem] font-medium uppercase tracking-[0.42em] text-white/82 sm:text-xs">
               {copy.weddingOf}
             </p>
-            <div className="mx-auto mt-5 flex w-24 items-center gap-2" aria-hidden="true">
+            <div
+              className="mx-auto mt-5 flex w-24 items-center gap-2"
+              aria-hidden="true"
+            >
               <span className="h-px flex-1 bg-white/35" />
               <span className="h-1 w-1 rotate-45 border border-white/55" />
               <span className="h-px flex-1 bg-white/35" />
@@ -147,18 +165,30 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
           </div>
 
           <div className="save-date-names my-auto flex min-h-[18rem] flex-col items-center justify-center py-10 sm:min-h-0 sm:py-6">
-            <h1
-              id="save-date-title"
-              aria-label={`Warissara ${conjunction} Thasarit`}
-              className="save-date-script text-center"
-            >
-              <span aria-hidden="true" className="block pr-8 sm:pr-12">
-                Warissara
-              </span>
-              <span aria-hidden="true" className="-mt-3 block pl-10 sm:-mt-5 sm:pl-16">
-                Thasarit
-              </span>
+            <h1 id="save-date-title" className="sr-only">
+              {coupleName}
             </h1>
+            <div className="relative w-full max-w-[29rem]">
+              <img
+                src={LOGO_SRC}
+                alt={coupleName}
+                width="760"
+                height="275"
+                className="h-auto w-full brightness-0 invert opacity-95 drop-shadow-[0_2px_1px_rgba(67,69,57,0.12)]"
+              />
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 opacity-65"
+                style={{
+                  background:
+                    "linear-gradient(105deg, #f8f6ef 0%, #f8f6ef 36%, #d5cfbf 49%, #ffffff 56%, #f8f6ef 72%, #f8f6ef 100%)",
+                  backgroundSize: "240% 100%",
+                  WebkitMask: `url("${LOGO_SRC}") center / contain no-repeat`,
+                  mask: `url("${LOGO_SRC}") center / contain no-repeat`,
+                  animation: "save-date-foil 7s ease-in-out 1.6s infinite",
+                }}
+              />
+            </div>
           </div>
 
           <div className="save-date-rise save-date-delay-3 mx-auto w-full max-w-sm">
@@ -189,7 +219,9 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
                 <CalendarIcon />
                 <span>{copy.addToCalendar}</span>
                 <span
-                  className={`transition-transform duration-300 ${calendarOpen ? "rotate-90" : ""}`}
+                  className={`transition-transform duration-300 ${
+                    calendarOpen ? "rotate-90" : ""
+                  }`}
                 >
                   <ArrowIcon />
                 </span>
@@ -198,7 +230,9 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
               <div
                 id="calendar-options"
                 aria-hidden={!calendarOpen}
-                className={`save-date-options ${calendarOpen ? "is-open" : ""}`}
+                className={`save-date-options ${
+                  calendarOpen ? "is-open" : ""
+                }`}
               >
                 <div className="save-date-options-inner">
                   <div className="rounded-[1.35rem] border border-white/20 bg-[#6f725f]/95 p-3 text-left shadow-2xl backdrop-blur-xl">
@@ -230,7 +264,9 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
                       className="flex items-center justify-between rounded-xl px-3 py-3 text-sm text-white transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white/80"
                     >
                       <span>
-                        <span className="block font-medium">Apple Calendar / Outlook</span>
+                        <span className="block font-medium">
+                          Apple Calendar / Outlook
+                        </span>
                         <span className="mt-0.5 block text-[0.68rem] text-white/55">
                           {copy.fileHint}
                         </span>

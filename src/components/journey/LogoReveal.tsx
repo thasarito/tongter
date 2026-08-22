@@ -5,12 +5,9 @@ import { event } from "@/shared/event-config";
 import { formatEventDate, pick, type Lang } from "@/shared/i18n";
 
 /**
- * The wedding logo, held on screen for a beat before the invitation.
- *
- * The couple is supplying a file. Until it lands — and if it ever fails to
- * load — this falls back to a typographic monogram rather than a broken image,
- * so the reveal is never empty. Drop the artwork at `public/logo.svg` (or
- * `.png` and change LOGO_SRC) and it takes over with no other change.
+ * The supplied outlined wedding logo, held on screen for a beat before the
+ * invitation. A typographic fallback keeps the reveal meaningful if the public
+ * SVG cannot be loaded.
  */
 
 const LOGO_SRC = "/logo.svg";
@@ -54,10 +51,10 @@ export default function LogoReveal({
           <img
             src={LOGO_SRC}
             alt={`${bride} & ${groom}`}
-            width="260"
-            height="260"
+            width="760"
+            height="275"
             onError={() => setUseFallback(true)}
-            className="h-auto w-52 sm:w-64"
+            className="h-auto w-[min(82vw,28rem)] brightness-0 invert opacity-95 sm:w-[30rem]"
           />
         ) : (
           <div className="text-center text-cream">
