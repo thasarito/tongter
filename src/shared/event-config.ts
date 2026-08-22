@@ -4,9 +4,14 @@ export const event = {
   bride: { th: "วริศรา", en: "Warissara" },
   groom: { th: "ธสฤษฏ์", en: "Thasarit" },
   startsAt: "2026-11-15T18:00:00+07:00",
+  endsAt: "2026-11-15T22:00:00+07:00",
   venue: {
     th: { name: "เดอะ กลาส เฮาส์ นายเลิศ ปาร์ค", address: "" },
     en: { name: "The Glass House, Nai Lert Park", address: "" },
+  },
+  saveTheDateVenue: {
+    th: "บ้านปาร์คนายเลิศ · กรุงเทพฯ",
+    en: "NAI LERT PARK · BANGKOK",
   },
   mapUrl: "https://maps.app.goo.gl/5YVrLWsZ3ocuZgia8",
   dressCode: {

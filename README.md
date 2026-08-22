@@ -1,6 +1,6 @@
 # Wedding RSVP — warissara.thasarito.com
 
-Bilingual Thai/English single-page wedding invitation and RSVP application.
+Bilingual Thai/English wedding Save the Date, invitation, and RSVP application.
 The React client and Hono API are deployed together as one Cloudflare Worker;
 Google Sheets remains the only data store.
 
@@ -59,7 +59,7 @@ RSVP writes are append-only. Current state is the last row per `guest_id`.
 
 | Route | Purpose |
 |---|---|
-| `/` | Full invitation journey |
+| `/` | Animated Save the Date landing and calendar links |
 | `/i/:guestToken` | Personal invitation |
 | `/rsvp` | Guest-name search |
 | `/rsvp/:groupToken` | Group invitation and RSVP |
@@ -82,7 +82,8 @@ pnpm deploy:cloudflare
 existing proxied Cloudflare DNS record supplies edge routing and TLS; the Worker
 route intercepts requests before they reach the former origin.
 
-GitHub Actions can deploy `main` when the repository has these secrets:
+GitHub Actions verifies pull requests without deploying them. Merges and direct
+pushes to `main` can deploy when the repository has these secrets:
 
 - `CLOUDFLARE_API_TOKEN` — token with Workers Scripts edit and zone DNS access
 - `CLOUDFLARE_ACCOUNT_ID`

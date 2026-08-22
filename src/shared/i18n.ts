@@ -42,6 +42,18 @@ const th = {
     seconds: "วินาที",
     dayHasArrived: "ถึงวันงานแล้ว",
   },
+  saveDate: {
+    weddingOf: "THE WEDDING OF",
+    saveTheDate: "โปรดบันทึกวันสำคัญของเรา",
+    invitationToFollow: "การ์ดเชิญอย่างเป็นทางการและแบบตอบรับจะตามมาเร็ว ๆ นี้",
+    addToCalendar: "เพิ่มลงปฏิทิน",
+    chooseCalendar: "เลือกปฏิทินที่คุณใช้",
+    googleHint: "เปิดและบันทึกใน Google",
+    fileHint: "ดาวน์โหลดไฟล์ปฏิทิน",
+    calendarTitle: "งานแต่งงานของวริศราและธสฤษฏ์",
+    calendarDescription:
+      "ร่วมฉลองวันสำคัญของวริศราและธสฤษฏ์ การ์ดเชิญอย่างเป็นทางการและแบบตอบรับจะตามมาเร็ว ๆ นี้",
+  },
   search: {
     title: "ค้นหาชื่อของคุณ",
     subtitle: "พิมพ์ชื่อหรือชื่อเล่นของคุณ เพื่อดูที่นั่งและตอบรับคำเชิญ",
@@ -146,6 +158,18 @@ const en = {
     minutes: "minutes",
     seconds: "seconds",
     dayHasArrived: "Today is the day",
+  },
+  saveDate: {
+    weddingOf: "THE WEDDING OF",
+    saveTheDate: "PLEASE SAVE THE DATE",
+    invitationToFollow: "Formal invitation and RSVP to follow.",
+    addToCalendar: "Add to calendar",
+    chooseCalendar: "Choose your calendar",
+    googleHint: "Open and save with Google",
+    fileHint: "Download a calendar file",
+    calendarTitle: "Warissara & Thasarit's Wedding",
+    calendarDescription:
+      "Celebrate Warissara and Thasarit's wedding with us. Formal invitation and RSVP to follow.",
   },
   search: {
     title: "Find your name",

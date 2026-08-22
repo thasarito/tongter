@@ -3,10 +3,13 @@ name: Verify and deploy
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   verify:
@@ -24,7 +27,84 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
 
+  preview:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Enable Cloudflare preview URLs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"enabled":false,"previews_enabled":true}' \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/warissara-wedding/subdomain" \
+            --output /dev/null
+      - name: Upload Cloudflare preview
+        id: preview
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: versions upload --preview-alias pr-${{ github.event.pull_request.number }}
+      - name: Find preview URL
+        id: preview-url
+        env:
+          WRANGLER_OUTPUT: ${{ steps.preview.outputs.command-output }}
+        run: |
+          url="$(printf '%s\n' "$WRANGLER_OUTPUT" | sed -n 's/.*Version Preview Alias URL: \(https:\/\/[^[:space:]]*\).*/\1/p' | tail -n 1)"
+          test -n "$url"
+          printf 'url=%s\n' "$url" >> "$GITHUB_OUTPUT"
+      - name: Verify preview
+        env:
+          PREVIEW_URL: ${{ steps.preview-url.outputs.url }}
+        run: |
+          curl --silent --show-error --fail \
+            --retry 5 --retry-all-errors --retry-delay 2 \
+            "$PREVIEW_URL/" --output /dev/null
+          curl --silent --show-error --fail \
+            --retry 5 --retry-all-errors --retry-delay 2 \
+            "$PREVIEW_URL/api/health" | jq --exit-status '.ok == true'
+      - name: Comment preview URL
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.preview-url.outputs.url }}
+        with:
+          script: |
+            const marker = '<!-- cloudflare-preview -->';
+            const body = `${marker}\nCloudflare preview: ${process.env.PREVIEW_URL}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+            const existing = comments.find(
+              (comment) => comment.user?.type === 'Bot' && comment.body?.includes(marker),
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
   deploy:
+    if: github.event_name != 'pull_request'
     needs: verify
     runs-on: ubuntu-latest
     env:
