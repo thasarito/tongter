@@ -66,6 +66,37 @@ test("serves the save-the-date landing and Worker API from one origin", async ({
   await page
     .getByRole("button", { name: /เพิ่มลงปฏิทิน|add to calendar/i })
     .click();
+
+  const calendarOverlay = page.getByRole("dialog", {
+    name: /เลือกปฏิทินที่คุณใช้|choose your calendar/i,
+  });
+  await expect(calendarOverlay).toBeVisible();
+  await expect(calendarOverlay).toHaveCSS("position", "absolute");
+
+  const lockedViewport = await page.evaluate(() => {
+    const stage = document.querySelector("main");
+    if (!stage) throw new Error("Save the Date stage is missing");
+    return {
+      htmlLocked: document.documentElement.classList.contains("save-date-locked"),
+      bodyLocked: document.body.classList.contains("save-date-locked"),
+      htmlOverflow: getComputedStyle(document.documentElement).overflow,
+      bodyOverflow: getComputedStyle(document.body).overflow,
+      bodyPosition: getComputedStyle(document.body).position,
+      stagePosition: getComputedStyle(stage).position,
+    };
+  });
+  expect(lockedViewport).toEqual({
+    htmlLocked: true,
+    bodyLocked: true,
+    htmlOverflow: "hidden",
+    bodyOverflow: "hidden",
+    bodyPosition: "fixed",
+    stagePosition: "fixed",
+  });
+
+  await page.evaluate(() => window.scrollTo(0, 300));
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
   await expect(page.getByRole("link", { name: "Google Calendar" })).toBeVisible();
   await expect(
     page.getByRole("link", { name: /Apple Calendar.*Outlook/i }),
