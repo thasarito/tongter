@@ -3,7 +3,7 @@ import type { Lang } from "@/shared/i18n";
 const LIFF_SDK_SRC = "https://static.line-scdn.net/liff/edge/2/sdk.js";
 const LINE_USER_AGENT = /\bLine\/[\d.]+/i;
 
-export type CalendarKind = "google" | "apple";
+export type CalendarKind = "google" | "file";
 export type CalendarRuntime = "liff" | "line-in-app" | "external";
 
 export interface LiffApi {
