@@ -95,6 +95,22 @@ describe("public API", () => {
     expect(body.endsWith("END:VCALENDAR\r\n")).toBe(true);
   });
 
+  it("downloads a local Apple event file instead of exposing a subscription feed URL", async () => {
+    const response = await app().request("/api/calendar/download?lang=en");
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain(
+      "application/octet-stream",
+    );
+    expect(response.headers.get("content-disposition")).toContain(
+      'attachment; filename="warissara-thasarit-wedding.ics"',
+    );
+    expect(body).toContain("BEGIN:VCALENDAR\r\n");
+    expect(body).toContain("DTSTART;TZID=Asia/Bangkok:20261115T180000\r\n");
+    expect(body.endsWith("END:VCALENDAR\r\n")).toBe(true);
+  });
+
   it("loads personal and group invitation bootstrap data", async () => {
     const personal = await app().request("/api/journey/me001?lang=en");
     expect(personal.status).toBe(200);
