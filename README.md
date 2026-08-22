@@ -60,6 +60,7 @@ RSVP writes are append-only. Current state is the last row per `guest_id`.
 | Route | Purpose |
 |---|---|
 | `/` | Animated Save the Date landing and calendar links |
+| `/calendar/apple` | Safari handoff page for a one-event Apple Calendar file |
 | `/i/:guestToken` | Personal invitation |
 | `/rsvp` | Guest-name search |
 | `/rsvp/:groupToken` | Group invitation and RSVP |
@@ -68,7 +69,8 @@ RSVP writes are append-only. Current state is the last row per `guest_id`.
 | `/admin/qr` | Printable group QR cards |
 | `/debug/venue` | Venue geometry diagnostic |
 | `/api/calendar/google` | Redirect to a prefilled Google Calendar event |
-| `/api/calendar/wedding.ics` | Generate the wedding ICS file from shared event config |
+| `/api/calendar/download` | Download the wedding as a local `.ics` attachment |
+| `/api/calendar/wedding.ics` | Legacy direct ICS endpoint kept for compatibility |
 
 API endpoints live under `/api`. Static routes use Cloudflare's SPA fallback;
 the Worker runs first only for `/api/*`.
@@ -80,10 +82,13 @@ scans one inside LINE, LINE opens the RSVP page in Safari or Chrome instead of
 keeping the whole RSVP and calendar flow inside its embedded browser. Existing
 bare `/rsvp/:groupToken` links remain valid.
 
-The Save the Date calendar choices now use same-origin API endpoints instead of
-relying on a new tab or the HTML `download` attribute. Ordinary LINE in-app
-browsers follow those URLs with `openExternalBrowser=1`; normal browsers use the
-same links without special handling.
+Google Calendar uses a same-origin redirect endpoint. Apple Calendar is
+intentionally different: opening a remote `.ics` URL on iPhone invokes the
+subscription-calendar flow. The Apple option therefore opens the normal HTML
+page at `/calendar/apple` in Safari first. A second, explicit tap downloads the
+single event from `/api/calendar/download` as an attachment; the guest then
+opens the downloaded file and adds the event. The UI never sends Apple Calendar
+the Worker URL as a subscription feed.
 
 LIFF is optional. To enable the stronger LIFF handoff:
 
@@ -94,9 +99,10 @@ LIFF is optional. To enable the stronger LIFF handoff:
 3. Share `https://liff.line.me/<LIFF_ID>/rsvp/<groupToken>` when a LIFF launch is
    preferred.
 
-Inside the LIFF browser, the client initializes the LIFF SDK and opens calendar
-links with `liff.openWindow({ external: true })`. If LIFF is not configured or
-initialization fails, the links degrade to ordinary browser navigation.
+Inside the LIFF browser, the client initializes the LIFF SDK and opens Google or
+the Apple HTML handoff page with `liff.openWindow({ external: true })`. If LIFF
+is not configured or initialization fails, the links degrade to ordinary
+browser navigation.
 
 ## Deployment
 
