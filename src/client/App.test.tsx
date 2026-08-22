@@ -64,13 +64,13 @@ describe("App routing", () => {
       screen.getByRole("link", { name: /Apple Calendar.*Outlook/i }),
     ).toHaveAttribute(
       "href",
-      "/calendar/apple?lang=th&openExternalBrowser=1",
+      "/?calendar=apple&lang=th&openExternalBrowser=1",
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("offers a downloaded event file instead of an Apple subscription URL", async () => {
-    window.history.replaceState({}, "", "/calendar/apple?lang=en");
+  it("reuses the Save the Date page with a download action in Apple mode", async () => {
+    window.history.replaceState({}, "", "/?calendar=apple&lang=en");
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(introResponse.clone());
@@ -78,14 +78,21 @@ describe("App routing", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "Add to Apple Calendar" }),
+      await screen.findByRole("heading", { name: /Warissara.*Thasarit/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: /Warissara.*Thasarit/i }),
+    ).toHaveAttribute("src", "/logo.svg");
+    expect(screen.getByText("15 · 11 · 2026")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Download calendar file" }),
     ).toHaveAttribute("href", "/api/calendar/download?lang=en");
     expect(
       screen.getByRole("link", { name: "Download calendar file" }),
     ).toHaveAttribute("download", "warissara-thasarit-wedding.ics");
+    expect(
+      screen.queryByRole("button", { name: "Add to calendar" }),
+    ).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
