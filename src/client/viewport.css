@@ -1,0 +1,82 @@
+/*
+ * The public Save the Date is the default document canvas. Matching the
+ * document, root, and Safari theme colour to the card prevents white safe-area
+ * bands while viewport-fit lets the card itself extend behind them.
+ */
+html {
+  min-height: 100%;
+  background-color: #9c9d88;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  background-color: #9c9d88;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: #9c9d88;
+}
+
+/*
+ * Only the public Save the Date route applies this class. Fixing the body and
+ * clipping both document roots prevents page scrolling and iOS rubber-banding;
+ * the class is removed as soon as another route mounts.
+ */
+html.save-date-locked,
+body.save-date-locked {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body.save-date-locked {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
+html.save-date-locked #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/*
+ * Calendar choices float above the trigger rather than adding height to the
+ * document. This keeps the invitation stationary even while the chooser opens.
+ */
+.save-date-options {
+  position: absolute;
+  z-index: 40;
+  inset-inline: 0;
+  bottom: calc(100% + 0.75rem);
+  display: block;
+  grid-template-rows: none;
+  margin-top: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(0.5rem) scale(0.98);
+  transform-origin: bottom center;
+  transition:
+    opacity 220ms ease,
+    transform 300ms cubic-bezier(0.2, 0.75, 0.2, 1),
+    visibility 0s linear 300ms;
+}
+
+.save-date-options.is-open {
+  grid-template-rows: none;
+  margin-top: 0;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  transition-delay: 0s;
+}
+
+.save-date-options-inner {
+  overflow: visible;
+}

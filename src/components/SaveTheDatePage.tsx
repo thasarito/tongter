@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import LangToggle from "@/components/LangToggle";
 import { event } from "@/shared/event-config";
 import { pick, t, type Lang } from "@/shared/i18n";
@@ -133,10 +133,23 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
   const location = pick(lang, event.saveTheDateVenue);
   const googleHref = useMemo(() => googleCalendarHref(lang), [lang]);
 
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+
+    html.classList.add("save-date-locked");
+    body.classList.add("save-date-locked");
+
+    return () => {
+      html.classList.remove("save-date-locked");
+      body.classList.remove("save-date-locked");
+    };
+  }, []);
+
   return (
-    <main className="save-date-stage flex min-h-dvh items-center justify-center sm:p-6">
+    <main className="save-date-stage fixed inset-0 flex h-[100dvh] w-full items-center justify-center overflow-hidden sm:p-6">
       <section
-        className="save-date-card relative isolate flex min-h-dvh w-full flex-col overflow-hidden text-[#f8f6ef] sm:h-[min(92dvh,56rem)] sm:min-h-0 sm:w-auto sm:aspect-[5/7] sm:rounded-[2rem]"
+        className="save-date-card relative isolate flex h-full w-full flex-col overflow-hidden text-[#f8f6ef] sm:h-[min(92dvh,56rem)] sm:w-auto sm:aspect-[5/7] sm:rounded-[2rem]"
         aria-labelledby="save-date-title"
         onKeyDown={(event) => {
           if (event.key === "Escape") setCalendarOpen(false);
@@ -149,7 +162,7 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
           <LangToggle lang={lang} />
         </div>
 
-        <div className="relative z-10 flex min-h-dvh flex-1 flex-col px-7 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(5rem,env(safe-area-inset-top))] text-center sm:min-h-0 sm:px-12 sm:pb-10 sm:pt-16">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col px-7 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(5rem,env(safe-area-inset-top))] text-center sm:px-12 sm:pb-10 sm:pt-16">
           <div className="save-date-rise save-date-delay-1">
             <p className="text-[0.68rem] font-medium uppercase tracking-[0.42em] text-white/82 sm:text-xs">
               {copy.weddingOf}
@@ -229,6 +242,8 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
 
               <div
                 id="calendar-options"
+                role="dialog"
+                aria-label={copy.chooseCalendar}
                 aria-hidden={!calendarOpen}
                 className={`save-date-options ${
                   calendarOpen ? "is-open" : ""

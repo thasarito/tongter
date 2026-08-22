@@ -11,6 +11,35 @@ test("serves the save-the-date landing and Worker API from one origin", async ({
   });
 
   await page.goto("/");
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
+    "content",
+    /viewport-fit=cover/,
+  );
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+    "content",
+    "#9c9d88",
+  );
+  expect(
+    await page.evaluate(
+      () => getComputedStyle(document.documentElement).backgroundColor,
+    ),
+  ).toBe("rgb(156, 157, 136)");
+
+  const fullBleedShell = await page.evaluate(() => {
+    const root = document.getElementById("root");
+    const stage = document.querySelector("main");
+    if (!root || !stage) throw new Error("Save the Date shell is missing");
+    return {
+      viewportHeight: window.innerHeight,
+      rootHeight: root.getBoundingClientRect().height,
+      stageTop: stage.getBoundingClientRect().top,
+    };
+  });
+  expect(fullBleedShell.stageTop).toBe(0);
+  expect(fullBleedShell.rootHeight).toBeGreaterThanOrEqual(
+    fullBleedShell.viewportHeight,
+  );
+
   await expect(
     page.getByRole("heading", { name: /Warissara.*Thasarit/i }),
   ).toBeVisible();
@@ -37,6 +66,37 @@ test("serves the save-the-date landing and Worker API from one origin", async ({
   await page
     .getByRole("button", { name: /เพิ่มลงปฏิทิน|add to calendar/i })
     .click();
+
+  const calendarOverlay = page.getByRole("dialog", {
+    name: /เลือกปฏิทินที่คุณใช้|choose your calendar/i,
+  });
+  await expect(calendarOverlay).toBeVisible();
+  await expect(calendarOverlay).toHaveCSS("position", "absolute");
+
+  const lockedViewport = await page.evaluate(() => {
+    const stage = document.querySelector("main");
+    if (!stage) throw new Error("Save the Date stage is missing");
+    return {
+      htmlLocked: document.documentElement.classList.contains("save-date-locked"),
+      bodyLocked: document.body.classList.contains("save-date-locked"),
+      htmlOverflow: getComputedStyle(document.documentElement).overflow,
+      bodyOverflow: getComputedStyle(document.body).overflow,
+      bodyPosition: getComputedStyle(document.body).position,
+      stagePosition: getComputedStyle(stage).position,
+    };
+  });
+  expect(lockedViewport).toEqual({
+    htmlLocked: true,
+    bodyLocked: true,
+    htmlOverflow: "hidden",
+    bodyOverflow: "hidden",
+    bodyPosition: "fixed",
+    stagePosition: "fixed",
+  });
+
+  await page.evaluate(() => window.scrollTo(0, 300));
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
   await expect(page.getByRole("link", { name: "Google Calendar" })).toBeVisible();
   await expect(
     page.getByRole("link", { name: /Apple Calendar.*Outlook/i }),
