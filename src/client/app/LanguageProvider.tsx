@@ -11,6 +11,9 @@ import {
 const COOKIE = "wedding-lang";
 
 function initialLanguage(): Lang {
+  const requested = new URLSearchParams(window.location.search).get("lang");
+  if (requested && isLang(requested)) return requested;
+
   const value = document.cookie
     .split(";")
     .map((part) => part.trim())

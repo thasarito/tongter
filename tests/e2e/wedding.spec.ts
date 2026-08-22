@@ -97,13 +97,48 @@ test("serves the save-the-date landing and Worker API from one origin", async ({
   await page.evaluate(() => window.scrollTo(0, 300));
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 
-  await expect(page.getByRole("link", { name: "Google Calendar" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Google Calendar" }),
+  ).toHaveAttribute(
+    "href",
+    "/api/calendar/google?lang=th&openExternalBrowser=1",
+  );
   await expect(
     page.getByRole("link", { name: /Apple Calendar.*Outlook/i }),
-  ).toHaveAttribute("href", "/warissara-thasarit-wedding.ics");
+  ).toHaveAttribute(
+    "href",
+    "/?calendar=apple&lang=th&openExternalBrowser=1",
+  );
 
-  const calendarFile = await page.request.get("/warissara-thasarit-wedding.ics");
+  const googleCalendar = await page.request.get("/api/calendar/google?lang=th", {
+    maxRedirects: 0,
+  });
+  expect(googleCalendar.status()).toBe(302);
+  expect(googleCalendar.headers().location).toContain(
+    "https://calendar.google.com/calendar/render?",
+  );
+
+  await page.goto("/?calendar=apple&lang=th");
+  await expect(page).toHaveURL(/\/\?calendar=apple&lang=th$/);
+  await expect(
+    page.getByRole("heading", { name: /Warissara.*Thasarit/i }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: /Warissara.*Thasarit/i }),
+  ).toHaveAttribute("src", "/logo.svg");
+  await expect(page.getByText("15 · 11 · 2026")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "ดาวน์โหลดไฟล์ปฏิทิน" }),
+  ).toHaveAttribute("href", "/api/calendar/download?lang=th");
+  await expect(
+    page.getByRole("link", { name: "ดาวน์โหลดไฟล์ปฏิทิน" }),
+  ).toHaveAttribute("download", "warissara-thasarit-wedding.ics");
+
+  const calendarFile = await page.request.get("/api/calendar/download?lang=th");
   await expect(calendarFile).toBeOK();
+  expect(calendarFile.headers()["content-type"]).toContain(
+    "application/octet-stream",
+  );
   expect(await calendarFile.text()).toContain(
     "DTSTART;TZID=Asia/Bangkok:20261115T180000",
   );

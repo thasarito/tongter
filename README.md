@@ -59,7 +59,7 @@ RSVP writes are append-only. Current state is the last row per `guest_id`.
 
 | Route | Purpose |
 |---|---|
-| `/` | Animated Save the Date landing and calendar links |
+| `/` | Animated Save the Date landing and calendar links; `?calendar=apple` swaps the chooser for the Apple download action |
 | `/i/:guestToken` | Personal invitation |
 | `/rsvp` | Guest-name search |
 | `/rsvp/:groupToken` | Group invitation and RSVP |
@@ -67,9 +67,43 @@ RSVP writes are append-only. Current state is the last row per `guest_id`.
 | `/admin` | Passphrase-protected dashboard |
 | `/admin/qr` | Printable group QR cards |
 | `/debug/venue` | Venue geometry diagnostic |
+| `/api/calendar/google` | Redirect to a prefilled Google Calendar event |
+| `/api/calendar/download` | Download the wedding as a local `.ics` attachment |
+| `/api/calendar/wedding.ics` | Legacy direct ICS endpoint kept for compatibility |
 
 API endpoints live under `/api`. Static routes use Cloudflare's SPA fallback;
 the Worker runs first only for `/api/*`.
+
+## LINE and calendar handoff
+
+Printable URLs from `/admin/qr` append `openExternalBrowser=1`. When a guest
+scans one inside LINE, LINE opens the RSVP page in Safari or Chrome instead of
+keeping the whole RSVP and calendar flow inside its embedded browser. Existing
+bare `/rsvp/:groupToken` links remain valid.
+
+Google Calendar uses a same-origin redirect endpoint. Apple Calendar is
+intentionally different: opening a remote `.ics` URL on iPhone invokes the
+subscription-calendar flow. The Apple option therefore opens the same Save the
+Date page at `/?calendar=apple&lang=<lang>` in Safari. The artwork, monogram,
+date, venue, and language control remain unchanged; only the calendar chooser is
+replaced by a direct **Download calendar file** action and a short import hint.
+That action downloads the single event from `/api/calendar/download` as an
+attachment. The UI never sends Apple Calendar the Worker URL as a subscription
+feed.
+
+LIFF is optional. To enable the stronger LIFF handoff:
+
+1. Configure a LIFF app, or a LINE MINI App with LIFF compatibility, whose
+   endpoint URL is `https://warissara.thasarito.com`.
+2. Set the public build-time variable `VITE_LIFF_ID` locally or as a GitHub
+   Actions repository variable.
+3. Share `https://liff.line.me/<LIFF_ID>/rsvp/<groupToken>` when a LIFF launch is
+   preferred.
+
+Inside the LIFF browser, the client initializes the LIFF SDK and opens Google or
+the root Apple query mode with `liff.openWindow({ external: true })`. If LIFF is
+not configured or initialization fails, the links degrade to ordinary browser
+navigation.
 
 ## Deployment
 
@@ -87,6 +121,9 @@ pushes to `main` can deploy when the repository has these secrets:
 
 - `CLOUDFLARE_API_TOKEN` — token with Workers Scripts edit and zone DNS access
 - `CLOUDFLARE_ACCOUNT_ID`
+
+Set the optional non-secret repository variable `VITE_LIFF_ID` to include LIFF
+support in production builds.
 
 ## Project layout
 

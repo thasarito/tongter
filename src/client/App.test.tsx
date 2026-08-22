@@ -54,13 +54,45 @@ describe("App routing", () => {
       await screen.findByRole("button", { name: "เพิ่มลงปฏิทิน" }),
     );
 
-    const googleLink = screen.getByRole("link", { name: "Google Calendar" });
-    expect(googleLink.getAttribute("href")).toContain(
-      "dates=20261115T110000Z%2F20261115T150000Z",
+    expect(
+      screen.getByRole("link", { name: "Google Calendar" }),
+    ).toHaveAttribute(
+      "href",
+      "/api/calendar/google?lang=th&openExternalBrowser=1",
     );
     expect(
       screen.getByRole("link", { name: /Apple Calendar.*Outlook/i }),
-    ).toHaveAttribute("href", "/warissara-thasarit-wedding.ics");
+    ).toHaveAttribute(
+      "href",
+      "/?calendar=apple&lang=th&openExternalBrowser=1",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reuses the Save the Date page with a download action in Apple mode", async () => {
+    window.history.replaceState({}, "", "/?calendar=apple&lang=en");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(introResponse.clone());
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: /Warissara.*Thasarit/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: /Warissara.*Thasarit/i }),
+    ).toHaveAttribute("src", "/logo.svg");
+    expect(screen.getByText("15 · 11 · 2026")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Download calendar file" }),
+    ).toHaveAttribute("href", "/api/calendar/download?lang=en");
+    expect(
+      screen.getByRole("link", { name: "Download calendar file" }),
+    ).toHaveAttribute("download", "warissara-thasarit-wedding.ics");
+    expect(
+      screen.queryByRole("button", { name: "Add to calendar" }),
+    ).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

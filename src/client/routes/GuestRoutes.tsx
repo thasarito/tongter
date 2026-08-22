@@ -1,4 +1,4 @@
-import { useParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import GuestJourney from "@/components/journey/GuestJourney";
 import SaveTheDatePage from "@/components/SaveTheDatePage";
 import SeatReveal from "@/components/SeatReveal";
@@ -20,7 +20,10 @@ function resourceView<T>(
 
 export function HomeRoute() {
   const { lang } = useLanguage();
-  return <SaveTheDatePage lang={lang} />;
+  const [searchParams] = useSearchParams();
+  const calendarMode =
+    searchParams.get("calendar") === "apple" ? "apple" : "chooser";
+  return <SaveTheDatePage lang={lang} calendarMode={calendarMode} />;
 }
 
 export function PersonalInviteRoute() {

@@ -1,3 +1,8 @@
+import {
+  buildWeddingCalendar,
+  CALENDAR_FILENAME,
+  googleCalendarUrl,
+} from "@/shared/calendar";
 import { serializeDietary } from "@/shared/dietary";
 import {
   displayName,
@@ -24,11 +29,36 @@ function language(raw: string | undefined): Lang {
   return raw && isLang(raw) ? raw : "th";
 }
 
+function calendarAttachmentHeaders(c: {
+  header(name: string, value: string): void;
+}) {
+  c.header("Content-Disposition", `attachment; filename="${CALENDAR_FILENAME}"`);
+  c.header("Cache-Control", "public, max-age=3600");
+}
+
 export function publicRoutes(deps: AppDependencies) {
   return new Hono<{ Bindings: WorkerBindings }>()
     .get("/health", (c) => {
       c.header("Cache-Control", "no-store");
       return c.json({ ok: true } as const, 200);
+    })
+    .get("/calendar/google", (c) => {
+      c.header("Cache-Control", "public, max-age=3600");
+      return c.redirect(googleCalendarUrl(language(c.req.query("lang"))), 302);
+    })
+    .get("/calendar/wedding.ics", (c) => {
+      const body = buildWeddingCalendar(language(c.req.query("lang")));
+      c.header("Content-Type", "text/calendar; charset=utf-8");
+      calendarAttachmentHeaders(c);
+      return c.body(body, 200);
+    })
+    .get("/calendar/download", (c) => {
+      const body = buildWeddingCalendar(language(c.req.query("lang")));
+      // A neutral binary type plus a URL without an .ics suffix makes this a
+      // local file download on iOS instead of a remote calendar subscription.
+      c.header("Content-Type", "application/octet-stream");
+      calendarAttachmentHeaders(c);
+      return c.body(body, 200);
     })
     .get("/journey", async (c) => {
       const snapshot = await deps.repositoryFor(c.env).getSnapshot();

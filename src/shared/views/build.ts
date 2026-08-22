@@ -298,15 +298,20 @@ export function buildQrSheetView(
 ): QrSheetView {
   return {
     status: snapshot.status,
-    cards: snapshot.groups.map((group) => ({
-      groupId: group.groupId,
-      label: groupLabelFor(group, lang) || group.groupId,
-      memberNames: guestsInGroup(snapshot, group.groupId).map((m) =>
-        displayName(m, lang),
-      ),
-      token: group.token,
-      url: `${siteUrl}/rsvp/${group.token}`,
-    })),
+    cards: snapshot.groups.map((group) => {
+      const target = new URL(`/rsvp/${group.token}`, siteUrl);
+      target.searchParams.set("openExternalBrowser", "1");
+
+      return {
+        groupId: group.groupId,
+        label: groupLabelFor(group, lang) || group.groupId,
+        memberNames: guestsInGroup(snapshot, group.groupId).map((m) =>
+          displayName(m, lang),
+        ),
+        token: group.token,
+        url: target.toString(),
+      };
+    }),
   };
 }
 
