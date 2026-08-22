@@ -33,6 +33,9 @@ describe("App routing", () => {
     expect(
       await screen.findByRole("heading", { name: /Warissara.*Thasarit/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: /Warissara.*Thasarit/i }),
+    ).toHaveAttribute("src", "/logo.svg");
     expect(screen.getByText("15 · 11 · 2026")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "เพิ่มลงปฏิทิน" }),
