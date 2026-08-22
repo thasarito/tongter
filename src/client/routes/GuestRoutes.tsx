@@ -1,10 +1,12 @@
-import { useParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
+import AppleCalendarPage from "@/components/AppleCalendarPage";
 import GuestJourney from "@/components/journey/GuestJourney";
 import SaveTheDatePage from "@/components/SaveTheDatePage";
 import SeatReveal from "@/components/SeatReveal";
 import { weddingApi } from "@/client/api/client";
 import { useLanguage } from "@/client/app/LanguageProvider";
 import { useApiResource } from "@/client/app/useApiResource";
+import { isLang } from "@/shared/i18n";
 import { ErrorRoute, LoadingRoute, MissingRoute } from "./RouteState";
 
 function resourceView<T>(
@@ -21,6 +23,14 @@ function resourceView<T>(
 export function HomeRoute() {
   const { lang } = useLanguage();
   return <SaveTheDatePage lang={lang} />;
+}
+
+export function AppleCalendarRoute() {
+  const { lang: storedLang } = useLanguage();
+  const [searchParams] = useSearchParams();
+  const requestedLang = searchParams.get("lang");
+  const lang = requestedLang && isLang(requestedLang) ? requestedLang : storedLang;
+  return <AppleCalendarPage lang={lang} />;
 }
 
 export function PersonalInviteRoute() {
