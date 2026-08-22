@@ -1,34 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  calendarEndpointHref,
+  handoffCalendarClick,
+  initializeCalendarLiff,
+  type LiffApi,
+} from "@/client/calendar/open-calendar";
 import LangToggle from "@/components/LangToggle";
 import { event } from "@/shared/event-config";
 import { pick, t, type Lang } from "@/shared/i18n";
 
-const CALENDAR_FILE = "/warissara-thasarit-wedding.ics";
 const LOGO_SRC = "/logo.svg";
-
-function compactUtc(iso: string): string {
-  return new Date(iso)
-    .toISOString()
-    .replace(/[-:]/g, "")
-    .replace(/\.\d{3}Z$/, "Z");
-}
-
-function googleCalendarHref(lang: Lang): string {
-  const copy = t(lang).saveDate;
-  const venue = pick(lang, event.venue);
-  const params = new URLSearchParams({
-    action: "TEMPLATE",
-    text: copy.calendarTitle,
-    dates: `${compactUtc(event.startsAt)}/${compactUtc(event.endsAt)}`,
-    details: `${copy.calendarDescription}\n${event.mapUrl}`,
-    location: venue.name,
-    ctz: "Asia/Bangkok",
-  });
-
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
-}
 
 function CalendarIcon() {
   return (
@@ -127,11 +110,19 @@ function FlowerLineArt({ position }: { position: "top" | "bottom" }) {
 
 export default function SaveTheDatePage({ lang }: { lang: Lang }) {
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [liff, setLiff] = useState<LiffApi | null>(null);
   const copy = t(lang).saveDate;
   const conjunction = t(lang).common.and;
   const coupleName = `Warissara ${conjunction} Thasarit`;
   const location = pick(lang, event.saveTheDateVenue);
-  const googleHref = useMemo(() => googleCalendarHref(lang), [lang]);
+  const googleHref = useMemo(
+    () => calendarEndpointHref("google", lang),
+    [lang],
+  );
+  const calendarFileHref = useMemo(
+    () => calendarEndpointHref("file", lang),
+    [lang],
+  );
 
   useEffect(() => {
     const html = document.documentElement;
@@ -143,6 +134,18 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
     return () => {
       html.classList.remove("save-date-locked");
       body.classList.remove("save-date-locked");
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    void initializeCalendarLiff(import.meta.env.VITE_LIFF_ID).then((client) => {
+      if (active) setLiff(client);
+    });
+
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -256,8 +259,9 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
                     </p>
                     <a
                       href={googleHref}
-                      target="_blank"
-                      rel="noreferrer"
+                      onClick={(event) =>
+                        handoffCalendarClick(event, googleHref, liff)
+                      }
                       tabIndex={calendarOpen ? 0 : -1}
                       aria-label="Google Calendar"
                       className="flex items-center justify-between rounded-xl px-3 py-3 text-sm text-white transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white/80"
@@ -272,8 +276,10 @@ export default function SaveTheDatePage({ lang }: { lang: Lang }) {
                     </a>
                     <div className="mx-3 h-px bg-white/12" />
                     <a
-                      href={CALENDAR_FILE}
-                      download
+                      href={calendarFileHref}
+                      onClick={(event) =>
+                        handoffCalendarClick(event, calendarFileHref, liff)
+                      }
                       tabIndex={calendarOpen ? 0 : -1}
                       aria-label="Apple Calendar / Outlook"
                       className="flex items-center justify-between rounded-xl px-3 py-3 text-sm text-white transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white/80"
