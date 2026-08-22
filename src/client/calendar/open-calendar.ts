@@ -57,13 +57,20 @@ function loadLiffSdk(): Promise<LiffApi> {
 }
 
 export function calendarEndpointHref(kind: CalendarKind, lang: Lang): string {
-  const endpoint =
-    kind === "google" ? "/api/calendar/google" : "/calendar/apple";
+  if (kind === "google") {
+    const params = new URLSearchParams({
+      lang,
+      openExternalBrowser: "1",
+    });
+    return `/api/calendar/google?${params.toString()}`;
+  }
+
   const params = new URLSearchParams({
+    calendar: "apple",
     lang,
     openExternalBrowser: "1",
   });
-  return `${endpoint}?${params.toString()}`;
+  return `/?${params.toString()}`;
 }
 
 export function detectCalendarRuntime(
