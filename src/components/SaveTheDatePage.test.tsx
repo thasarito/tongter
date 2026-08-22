@@ -62,12 +62,12 @@ describe("SaveTheDatePage viewport behavior", () => {
     ).toHaveAttribute("aria-hidden", "false");
   });
 
-  it("routes both calendar choices through external-browser-friendly endpoints", () => {
+  it("routes Google through its API and Apple through a browser handoff page", () => {
     renderPage();
     openCalendarChoices();
 
     const google = screen.getByRole("link", { name: "Google Calendar" });
-    const calendarFile = screen.getByRole("link", {
+    const apple = screen.getByRole("link", {
       name: "Apple Calendar / Outlook",
     });
 
@@ -75,14 +75,14 @@ describe("SaveTheDatePage viewport behavior", () => {
       "href",
       "/api/calendar/google?lang=en&openExternalBrowser=1",
     );
-    expect(calendarFile).toHaveAttribute(
+    expect(apple).toHaveAttribute(
       "href",
-      "/api/calendar/wedding.ics?lang=en&openExternalBrowser=1",
+      "/calendar/apple?lang=en&openExternalBrowser=1",
     );
-    expect(calendarFile).not.toHaveAttribute("download");
+    expect(apple).not.toHaveAttribute("download");
   });
 
-  it("uses LIFF to open a calendar choice outside the LIFF browser", async () => {
+  it("uses LIFF to open the Apple handoff page outside the LIFF browser", async () => {
     vi.stubEnv("VITE_LIFF_ID", "1234567890-test");
     const liff: TestLiff = {
       init: vi.fn(async () => undefined),
@@ -92,12 +92,16 @@ describe("SaveTheDatePage viewport behavior", () => {
     setWindowLiff(liff);
     renderPage();
 
-    await waitFor(() => expect(liff.init).toHaveBeenCalledWith({ liffId: "1234567890-test" }));
+    await waitFor(() =>
+      expect(liff.init).toHaveBeenCalledWith({ liffId: "1234567890-test" }),
+    );
     openCalendarChoices();
-    fireEvent.click(screen.getByRole("link", { name: "Google Calendar" }));
+    fireEvent.click(
+      screen.getByRole("link", { name: "Apple Calendar / Outlook" }),
+    );
 
     expect(liff.openWindow).toHaveBeenCalledWith({
-      url: "http://localhost:3000/api/calendar/google?lang=en&openExternalBrowser=1",
+      url: "http://localhost:3000/calendar/apple?lang=en&openExternalBrowser=1",
       external: true,
     });
   });
