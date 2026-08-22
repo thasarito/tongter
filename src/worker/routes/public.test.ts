@@ -89,7 +89,7 @@ describe("public API", () => {
     expect(body).toContain("BEGIN:VCALENDAR\r\n");
     expect(body).toContain("DTSTART;TZID=Asia/Bangkok:20261115T180000\r\n");
     expect(body).toContain("DTEND;TZID=Asia/Bangkok:20261115T220000\r\n");
-    expect(body).toContain("SUMMARY:Warissara & Thasarit\\'s Wedding\r\n");
+    expect(body).toContain("SUMMARY:Warissara & Thasarit's Wedding\r\n");
     expect(body).toContain("LOCATION:The Glass House\\, Nai Lert Park\r\n");
     expect(body).toContain("URL:https://warissara.thasarito.com\r\n");
     expect(body.endsWith("END:VCALENDAR\r\n")).toBe(true);
