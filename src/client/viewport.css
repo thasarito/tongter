@@ -1,0 +1,22 @@
+/*
+ * The public Save the Date is the default document canvas. Matching the
+ * document, root, and Safari theme colour to the card prevents white safe-area
+ * bands while viewport-fit lets the card itself extend behind them.
+ */
+html {
+  min-height: 100%;
+  background-color: #9c9d88;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  background-color: #9c9d88;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: #9c9d88;
+}

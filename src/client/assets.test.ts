@@ -6,7 +6,7 @@ const projectRoot = resolve(import.meta.dirname, "../..");
 const publicLogo = resolve(projectRoot, "public/logo.svg");
 const publicFavicon = resolve(projectRoot, "public/favicon.svg");
 const indexHtml = resolve(projectRoot, "index.html");
-const globalStyles = resolve(projectRoot, "src/client/globals.css");
+const viewportStyles = resolve(projectRoot, "src/client/viewport.css");
 const rootAssetExtensions = new Set([
   ".ai",
   ".gif",
@@ -51,7 +51,7 @@ describe("wedding artwork", () => {
 
   it("configures iOS Safari for an edge-to-edge olive landing", () => {
     const html = readRequiredAsset(indexHtml);
-    const styles = readRequiredAsset(globalStyles);
+    const styles = readRequiredAsset(viewportStyles);
 
     expect(html).toContain("viewport-fit=cover");
     expect(html).toMatch(
