@@ -3,8 +3,13 @@ import {
   CALENDAR_FILENAME,
   googleCalendarUrl,
 } from "@/shared/calendar";
-import { serializeDietary, type DietarySelection } from "@/shared/dietary";
-import { findGuestByPersonalToken, findGroupByToken, guestsInGroup } from "@/shared/guest-list";
+import { serializeDietary } from "@/shared/dietary";
+import {
+  displayName,
+  findGroupByToken,
+  findGuestByToken,
+  guestsInGroup,
+} from "@/shared/guest-list";
 import { isLang, type Lang } from "@/shared/i18n";
 import {
   buildJourneyIntroView,
@@ -12,27 +17,24 @@ import {
   buildSearchView,
   buildSeatView,
 } from "@/shared/views";
-import {
-  allowDietaryOther,
-  dietaryOptions,
-  seatingDebug,
-} from "@/shared/event-config";
-import { Hono, type Context } from "hono";
+import { allowDietaryOther, dietaryOptions } from "@/shared/event-config";
+import { Hono } from "hono";
 import type { AppDependencies } from "../dependencies";
-import { apiError } from "../contracts";
+import { apiError, personFlowSchema, rsvpSubmissionSchema } from "../contracts";
 import type { WorkerBindings } from "../env";
+
+const notFound = () => apiError("NOT_FOUND", "Invitation not found.");
 
 function language(raw: string | undefined): Lang {
   return raw && isLang(raw) ? raw : "th";
 }
 
-function notFound(c: Context) {
-  return c.json(apiError("NOT_FOUND", "Invitation not found."), 404);
-}
-
 export function publicRoutes(deps: AppDependencies) {
   return new Hono<{ Bindings: WorkerBindings }>()
-    .get("/health", (c) => c.json({ ok: true }))
+    .get("/health", (c) => {
+      c.header("Cache-Control", "no-store");
+      return c.json({ ok: true } as const, 200);
+    })
     .get("/calendar/google", (c) => {
       c.header("Cache-Control", "public, max-age=3600");
       return c.redirect(googleCalendarUrl(language(c.req.query("lang"))), 302);
@@ -51,38 +53,28 @@ export function publicRoutes(deps: AppDependencies) {
       const snapshot = await deps.repositoryFor(c.env).getSnapshot();
       return c.json(buildJourneyIntroView(snapshot, language(c.req.query("lang"))), 200);
     })
-    .get("/journey/:guestToken", async (c) => {
-      const snapshot = await deps.repositoryFor(c.env).getSnapshot();
-      const lang = language(c.req.query("lang"));
-      const guest = findGuestByPersonalToken(snapshot, c.req.param("guestToken"));
-      if (!guest) return notFound(c);
-      const group = snapshot.groups.find((entry) => entry.groupId === guest.groupId);
-      if (!group) return notFound(c);
-      const view = buildRsvpView(snapshot, group.token, {
-        lang,
-        dietaryOptions,
-        allowDietaryOther,
-      });
-      if (view.kind === "not-found") return notFound(c);
-      return c.json({
-        intro: buildJourneyIntroView(snapshot, lang),
-        flow: { selfGuestId: guest.guestId, view },
-      });
-    })
     .post("/journey/person", async (c) => {
-      const body = await c.req.json<{ guestId?: string; lang?: string }>().catch(() => ({}));
+      const parsed = personFlowSchema.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success) {
+        return c.json(apiError("INVALID_PERSON", "Please choose a guest."), 400);
+      }
       const snapshot = await deps.repositoryFor(c.env).getSnapshot();
-      const guest = snapshot.guests.find((entry) => entry.guestId === body.guestId);
-      if (!guest) return notFound(c);
-      const group = snapshot.groups.find((entry) => entry.groupId === guest.groupId);
-      if (!group) return notFound(c);
-      const view = buildRsvpView(snapshot, group.token, {
-        lang: language(body.lang),
-        dietaryOptions,
-        allowDietaryOther,
-      });
-      if (view.kind === "not-found") return notFound(c);
-      return c.json({ selfGuestId: guest.guestId, view });
+      const guest = snapshot.guests.find(
+        (candidate) => candidate.guestId === parsed.data.guestId,
+      );
+      const group = guest
+        ? snapshot.groups.find((candidate) => candidate.groupId === guest.groupId)
+        : undefined;
+      const view = group?.token
+        ? buildRsvpView(snapshot, group.token, {
+            lang: parsed.data.lang,
+            dietaryOptions,
+            allowDietaryOther,
+          })
+        : null;
+      return guest && view?.kind === "form"
+        ? c.json({ view, selfGuestId: guest.guestId }, 200)
+        : c.json(notFound(), 404);
     })
     .get("/search", async (c) => {
       const snapshot = await deps.repositoryFor(c.env).getSnapshot();
@@ -91,80 +83,104 @@ export function publicRoutes(deps: AppDependencies) {
         200,
       );
     })
-    .get("/rsvp/:token", async (c) => {
-      const snapshot = await deps.repositoryFor(c.env).getSnapshot();
+    .get("/journey/:guestToken", async (c) => {
       const lang = language(c.req.query("lang"));
-      const view = buildRsvpView(snapshot, c.req.param("token"), {
+      const snapshot = await deps.repositoryFor(c.env).getSnapshot();
+      const guest = findGuestByToken(snapshot, c.req.param("guestToken"));
+      const group = guest
+        ? snapshot.groups.find((candidate) => candidate.groupId === guest.groupId)
+        : undefined;
+      const view = group?.token
+        ? buildRsvpView(snapshot, group.token, { lang, dietaryOptions, allowDietaryOther })
+        : null;
+      if (!guest || !view || view.kind !== "form") {
+        return c.json(notFound(), 404);
+      }
+      return c.json({
+        intro: buildJourneyIntroView(snapshot, lang),
+        flow: { view, selfGuestId: guest.guestId },
+      }, 200);
+    })
+    .get("/rsvp/:groupToken", async (c) => {
+      const lang = language(c.req.query("lang"));
+      const snapshot = await deps.repositoryFor(c.env).getSnapshot();
+      const group = findGroupByToken(snapshot, c.req.param("groupToken"));
+      if (!group) return c.json(notFound(), 404);
+      const view = buildRsvpView(snapshot, group.token, {
         lang,
         dietaryOptions,
         allowDietaryOther,
       });
-      if (view.kind === "not-found") return notFound(c);
+      if (view.kind !== "form") return c.json(notFound(), 404);
+      const choices = guestsInGroup(snapshot, group.groupId).map((guest) => ({
+        guestId: guest.guestId,
+        name: displayName(guest, lang),
+      }));
       return c.json({
         intro: buildJourneyIntroView(snapshot, lang),
+        choices,
         view,
-        choices: view.guests.map((guest) => ({ guestId: guest.guestId, name: guest.name })),
-      });
+      }, 200);
     })
-    .post("/rsvp/:token", async (c) => {
-      const snapshot = await deps.repositoryFor(c.env).getSnapshot();
-      const token = c.req.param("token");
-      const group = findGroupByToken(snapshot, token);
-      if (!group) return notFound(c);
-      const members = guestsInGroup(snapshot, group.groupId);
-      const allowed = new Set(members.map((guest) => guest.guestId));
-      const body = await c.req.json<{
-        submittedBy?: string;
-        lang?: string;
-        answers?: Array<{
-          guestId?: string;
-          attending?: boolean;
-          dietary?: string[];
-          dietaryOther?: string;
-          note?: string;
-        }>;
-      }>().catch(() => ({}));
-      const entries = (body.answers ?? [])
-        .filter((answer) => answer.guestId && allowed.has(answer.guestId))
-        .map((answer) => {
-          const selection: DietarySelection = {
-            selected: (answer.dietary ?? []).filter((id) => dietaryOptions.some((option) => option.id === id)),
-            other: allowDietaryOther ? (answer.dietaryOther ?? "") : "",
-          };
-          return {
-            guestId: answer.guestId!,
-            attending: answer.attending === true,
-            dietary: serializeDietary(selection),
-            note: (answer.note ?? "").trim(),
-          };
-        });
-      if (entries.length === 0) {
-        return c.json(apiError("VALIDATION_ERROR", "Please answer for at least one guest."), 400);
+    .post("/rsvp/:groupToken", async (c) => {
+      if (!c.req.header("content-type")?.toLowerCase().startsWith("application/json")) {
+        return c.json(apiError("UNSUPPORTED_MEDIA_TYPE", "JSON is required."), 415);
+      }
+      const parsed = rsvpSubmissionSchema.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success) {
+        return c.json(apiError("INVALID_RSVP", "Please check your answers."), 400);
+      }
+      const repository = deps.repositoryFor(c.env);
+      const snapshot = await repository.getSnapshot();
+      const group = findGroupByToken(snapshot, c.req.param("groupToken"));
+      if (!group) return c.json(notFound(), 404);
+      const memberIds = new Set(guestsInGroup(snapshot, group.groupId).map((guest) => guest.guestId));
+      const entries = parsed.data.answers
+        .filter((answer) => memberIds.has(answer.guestId))
+        .map((answer) => ({
+          guestId: answer.guestId,
+          attending: answer.attending,
+          dietary: serializeDietary({
+            selected: answer.dietary,
+            other: answer.dietaryOther,
+          }),
+          note: answer.note.trim(),
+        }));
+      if (!memberIds.has(parsed.data.submittedBy) || entries.length === 0) {
+        return c.json(apiError("INVALID_RSVP", "Please check your answers."), 400);
       }
       try {
-        await deps.repositoryFor(c.env).appendRsvp({
+        await repository.appendRsvp({
           groupId: group.groupId,
-          submittedBy: body.submittedBy ?? "",
-          lang: language(body.lang),
+          submittedBy: parsed.data.submittedBy,
+          lang: parsed.data.lang,
           entries,
         });
       } catch (error) {
-        console.error("[rsvp] append failed", { name: error instanceof Error ? error.name : "unknown" });
+        console.error("[rsvp] append failed", {
+          name: error instanceof Error ? error.name : "UnknownError",
+        });
         return c.json(apiError("RSVP_WRITE_FAILED", "Please try again."), 503);
       }
-      const guest = entries.find((entry) => entry.guestId === body.submittedBy) ?? entries[0];
-      return c.json(
-        { ok: true, seatHref: `/seat/${token}?celebrate=1&guest=${guest.guestId}` },
-        201,
-      );
+      const guest = encodeURIComponent(parsed.data.submittedBy);
+      return c.json({
+        ok: true as const,
+        seatHref: `/seat/${group.token}?celebrate=1&guest=${guest}`,
+      }, 201);
     })
-    .get("/seat/:token", async (c) => {
+    .get("/seat/:groupToken", async (c) => {
       const snapshot = await deps.repositoryFor(c.env).getSnapshot();
-      const view = buildSeatView(snapshot, c.req.param("token"), language(c.req.query("lang")), {
-        celebrate: c.req.query("celebrate") === "1",
-        preferGuestId: c.req.query("guest"),
-      });
-      if (view.kind === "not-found") return notFound(c);
-      return c.json({ view, debug: seatingDebug }, 200);
+      const view = buildSeatView(
+        snapshot,
+        c.req.param("groupToken"),
+        language(c.req.query("lang")),
+        {
+          celebrate: c.req.query("celebrate") === "1",
+          preferGuestId: c.req.query("guest"),
+        },
+      );
+      return view.kind === "not-found"
+        ? c.json(notFound(), 404)
+        : c.json({ view, debug: c.req.query("debug") === "1" }, 200);
     });
 }
