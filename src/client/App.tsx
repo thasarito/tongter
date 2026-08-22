@@ -1,11 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router";
 import { LanguageProvider } from "./app/LanguageProvider";
-import {
-  GroupInviteRoute,
-  HomeRoute,
-  PersonalInviteRoute,
-  SeatRoute,
-} from "./routes/GuestRoutes";
+import { GroupInviteRoute, HomeRoute, PersonalInviteRoute, SeatRoute } from "./routes/GuestRoutes";
 import { SearchRoute } from "./routes/SearchRoute";
 import { VenueRoute } from "./routes/VenueRoute";
 import { MissingRoute } from "./routes/RouteState";
