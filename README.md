@@ -67,9 +67,36 @@ RSVP writes are append-only. Current state is the last row per `guest_id`.
 | `/admin` | Passphrase-protected dashboard |
 | `/admin/qr` | Printable group QR cards |
 | `/debug/venue` | Venue geometry diagnostic |
+| `/api/calendar/google` | Redirect to a prefilled Google Calendar event |
+| `/api/calendar/wedding.ics` | Generate the wedding ICS file from shared event config |
 
 API endpoints live under `/api`. Static routes use Cloudflare's SPA fallback;
 the Worker runs first only for `/api/*`.
+
+## LINE and calendar handoff
+
+Printable URLs from `/admin/qr` append `openExternalBrowser=1`. When a guest
+scans one inside LINE, LINE opens the RSVP page in Safari or Chrome instead of
+keeping the whole RSVP and calendar flow inside its embedded browser. Existing
+bare `/rsvp/:groupToken` links remain valid.
+
+The Save the Date calendar choices now use same-origin API endpoints instead of
+relying on a new tab or the HTML `download` attribute. Ordinary LINE in-app
+browsers follow those URLs with `openExternalBrowser=1`; normal browsers use the
+same links without special handling.
+
+LIFF is optional. To enable the stronger LIFF handoff:
+
+1. Configure a LIFF app, or a LINE MINI App with LIFF compatibility, whose
+   endpoint URL is `https://warissara.thasarito.com`.
+2. Set the public build-time variable `VITE_LIFF_ID` locally or as a GitHub
+   Actions repository variable.
+3. Share `https://liff.line.me/<LIFF_ID>/rsvp/<groupToken>` when a LIFF launch is
+   preferred.
+
+Inside the LIFF browser, the client initializes the LIFF SDK and opens calendar
+links with `liff.openWindow({ external: true })`. If LIFF is not configured or
+initialization fails, the links degrade to ordinary browser navigation.
 
 ## Deployment
 
@@ -87,6 +114,9 @@ pushes to `main` can deploy when the repository has these secrets:
 
 - `CLOUDFLARE_API_TOKEN` — token with Workers Scripts edit and zone DNS access
 - `CLOUDFLARE_ACCOUNT_ID`
+
+Set the optional non-secret repository variable `VITE_LIFF_ID` to include LIFF
+support in production builds.
 
 ## Project layout
 
