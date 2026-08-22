@@ -59,8 +59,7 @@ RSVP writes are append-only. Current state is the last row per `guest_id`.
 
 | Route | Purpose |
 |---|---|
-| `/` | Animated Save the Date landing and calendar links |
-| `/calendar/apple` | Safari handoff page for a one-event Apple Calendar file |
+| `/` | Animated Save the Date landing and calendar links; `?calendar=apple` swaps the chooser for the Apple download action |
 | `/i/:guestToken` | Personal invitation |
 | `/rsvp` | Guest-name search |
 | `/rsvp/:groupToken` | Group invitation and RSVP |
@@ -84,11 +83,13 @@ bare `/rsvp/:groupToken` links remain valid.
 
 Google Calendar uses a same-origin redirect endpoint. Apple Calendar is
 intentionally different: opening a remote `.ics` URL on iPhone invokes the
-subscription-calendar flow. The Apple option therefore opens the normal HTML
-page at `/calendar/apple` in Safari first. A second, explicit tap downloads the
-single event from `/api/calendar/download` as an attachment; the guest then
-opens the downloaded file and adds the event. The UI never sends Apple Calendar
-the Worker URL as a subscription feed.
+subscription-calendar flow. The Apple option therefore opens the same Save the
+Date page at `/?calendar=apple&lang=<lang>` in Safari. The artwork, monogram,
+date, venue, and language control remain unchanged; only the calendar chooser is
+replaced by a direct **Download calendar file** action and a short import hint.
+That action downloads the single event from `/api/calendar/download` as an
+attachment. The UI never sends Apple Calendar the Worker URL as a subscription
+feed.
 
 LIFF is optional. To enable the stronger LIFF handoff:
 
@@ -100,9 +101,9 @@ LIFF is optional. To enable the stronger LIFF handoff:
    preferred.
 
 Inside the LIFF browser, the client initializes the LIFF SDK and opens Google or
-the Apple HTML handoff page with `liff.openWindow({ external: true })`. If LIFF
-is not configured or initialization fails, the links degrade to ordinary
-browser navigation.
+the root Apple query mode with `liff.openWindow({ external: true })`. If LIFF is
+not configured or initialization fails, the links degrade to ordinary browser
+navigation.
 
 ## Deployment
 
