@@ -50,6 +50,51 @@ describe("public API", () => {
     expect(body.results[0]).not.toHaveProperty("token");
   });
 
+  it("redirects Google Calendar through a server-owned event URL", async () => {
+    const response = await app().request("/api/calendar/google?lang=en", {
+      redirect: "manual",
+    });
+    const location = response.headers.get("location");
+
+    expect(response.status).toBe(302);
+    expect(location).not.toBeNull();
+
+    const target = new URL(location!);
+    expect(`${target.origin}${target.pathname}`).toBe(
+      "https://calendar.google.com/calendar/render",
+    );
+    expect(target.searchParams.get("action")).toBe("TEMPLATE");
+    expect(target.searchParams.get("text")).toBe("Warissara & Thasarit's Wedding");
+    expect(target.searchParams.get("dates")).toBe(
+      "20261115T110000Z/20261115T150000Z",
+    );
+    expect(target.searchParams.get("ctz")).toBe("Asia/Bangkok");
+    expect(target.searchParams.get("location")).toBe(
+      "The Glass House, Nai Lert Park",
+    );
+    expect(target.searchParams.get("details")).toContain(
+      "https://maps.app.goo.gl/5YVrLWsZ3ocuZgia8",
+    );
+  });
+
+  it("serves a generated wedding calendar file with import-friendly headers", async () => {
+    const response = await app().request("/api/calendar/wedding.ics?lang=en");
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/calendar");
+    expect(response.headers.get("content-disposition")).toContain(
+      'filename="warissara-thasarit-wedding.ics"',
+    );
+    expect(body).toContain("BEGIN:VCALENDAR\r\n");
+    expect(body).toContain("DTSTART;TZID=Asia/Bangkok:20261115T180000\r\n");
+    expect(body).toContain("DTEND;TZID=Asia/Bangkok:20261115T220000\r\n");
+    expect(body).toContain("SUMMARY:Warissara & Thasarit\\'s Wedding\r\n");
+    expect(body).toContain("LOCATION:The Glass House\\, Nai Lert Park\r\n");
+    expect(body).toContain("URL:https://warissara.thasarito.com\r\n");
+    expect(body.endsWith("END:VCALENDAR\r\n")).toBe(true);
+  });
+
   it("loads personal and group invitation bootstrap data", async () => {
     const personal = await app().request("/api/journey/me001?lang=en");
     expect(personal.status).toBe(200);
