@@ -97,13 +97,32 @@ test("serves the save-the-date landing and Worker API from one origin", async ({
   await page.evaluate(() => window.scrollTo(0, 300));
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 
-  await expect(page.getByRole("link", { name: "Google Calendar" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Google Calendar" }),
+  ).toHaveAttribute(
+    "href",
+    "/api/calendar/google?lang=th&openExternalBrowser=1",
+  );
   await expect(
     page.getByRole("link", { name: /Apple Calendar.*Outlook/i }),
-  ).toHaveAttribute("href", "/warissara-thasarit-wedding.ics");
+  ).toHaveAttribute(
+    "href",
+    "/api/calendar/wedding.ics?lang=th&openExternalBrowser=1",
+  );
 
-  const calendarFile = await page.request.get("/warissara-thasarit-wedding.ics");
+  const googleCalendar = await page.request.get("/api/calendar/google?lang=th", {
+    maxRedirects: 0,
+  });
+  expect(googleCalendar.status()).toBe(302);
+  expect(googleCalendar.headers().location).toContain(
+    "https://calendar.google.com/calendar/render?",
+  );
+
+  const calendarFile = await page.request.get(
+    "/api/calendar/wedding.ics?lang=th",
+  );
   await expect(calendarFile).toBeOK();
+  expect(calendarFile.headers()["content-type"]).toContain("text/calendar");
   expect(await calendarFile.text()).toContain(
     "DTSTART;TZID=Asia/Bangkok:20261115T180000",
   );
