@@ -107,7 +107,7 @@ test("serves the save-the-date landing and Worker API from one origin", async ({
     page.getByRole("link", { name: /Apple Calendar.*Outlook/i }),
   ).toHaveAttribute(
     "href",
-    "/calendar/apple?lang=th&openExternalBrowser=1",
+    "/?calendar=apple&lang=th&openExternalBrowser=1",
   );
 
   const googleCalendar = await page.request.get("/api/calendar/google?lang=th", {
@@ -118,10 +118,15 @@ test("serves the save-the-date landing and Worker API from one origin", async ({
     "https://calendar.google.com/calendar/render?",
   );
 
-  await page.goto("/calendar/apple?lang=th");
+  await page.goto("/?calendar=apple&lang=th");
+  await expect(page).toHaveURL(/\/\?calendar=apple&lang=th$/);
   await expect(
-    page.getByRole("heading", { name: "เพิ่มลง Apple Calendar" }),
+    page.getByRole("heading", { name: /Warissara.*Thasarit/i }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: /Warissara.*Thasarit/i }),
+  ).toHaveAttribute("src", "/logo.svg");
+  await expect(page.getByText("15 · 11 · 2026")).toBeVisible();
   await expect(
     page.getByRole("link", { name: "ดาวน์โหลดไฟล์ปฏิทิน" }),
   ).toHaveAttribute("href", "/api/calendar/download?lang=th");
