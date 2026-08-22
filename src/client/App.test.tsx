@@ -64,8 +64,28 @@ describe("App routing", () => {
       screen.getByRole("link", { name: /Apple Calendar.*Outlook/i }),
     ).toHaveAttribute(
       "href",
-      "/api/calendar/wedding.ics?lang=th&openExternalBrowser=1",
+      "/calendar/apple?lang=th&openExternalBrowser=1",
     );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("offers a downloaded event file instead of an Apple subscription URL", async () => {
+    window.history.replaceState({}, "", "/calendar/apple?lang=en");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(introResponse.clone());
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Add to Apple Calendar" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Download calendar file" }),
+    ).toHaveAttribute("href", "/api/calendar/download?lang=en");
+    expect(
+      screen.getByRole("link", { name: "Download calendar file" }),
+    ).toHaveAttribute("download", "warissara-thasarit-wedding.ics");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
