@@ -15,9 +15,24 @@ test("serves the save-the-date landing and Worker API from one origin", async ({
     page.getByRole("heading", { name: /Warissara.*Thasarit/i }),
   ).toBeVisible();
   await expect(
+    page.getByRole("img", { name: /Warissara.*Thasarit/i }),
+  ).toHaveAttribute("src", "/logo.svg");
+  await expect(
     page.getByRole("button", { name: /เพิ่มลงปฏิทิน|add to calendar/i }),
   ).toBeVisible();
   expect(journeyRequests).toBe(0);
+
+  const logoFile = await page.request.get("/logo.svg");
+  await expect(logoFile).toBeOK();
+  const logoMarkup = await logoFile.text();
+  expect(logoMarkup).toContain("<path");
+  expect(logoMarkup).not.toMatch(/<(?:image|text)\b/);
+
+  const faviconFile = await page.request.get("/favicon.svg");
+  await expect(faviconFile).toBeOK();
+  const faviconMarkup = await faviconFile.text();
+  expect(faviconMarkup).toContain("<path");
+  expect(faviconMarkup).not.toContain("<text");
 
   await page
     .getByRole("button", { name: /เพิ่มลงปฏิทิน|add to calendar/i })
