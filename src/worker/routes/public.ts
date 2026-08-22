@@ -17,7 +17,7 @@ import {
   dietaryOptions,
   seatingDebug,
 } from "@/shared/event-config";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { AppDependencies } from "../dependencies";
 import { apiError } from "../contracts";
 import type { WorkerBindings } from "../env";
@@ -26,7 +26,7 @@ function language(raw: string | undefined): Lang {
   return raw && isLang(raw) ? raw : "th";
 }
 
-function notFound(c: { json: Function }) {
+function notFound(c: Context) {
   return c.json(apiError("NOT_FOUND", "Invitation not found."), 404);
 }
 
