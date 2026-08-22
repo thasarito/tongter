@@ -107,7 +107,7 @@ test("serves the save-the-date landing and Worker API from one origin", async ({
     page.getByRole("link", { name: /Apple Calendar.*Outlook/i }),
   ).toHaveAttribute(
     "href",
-    "/api/calendar/wedding.ics?lang=th&openExternalBrowser=1",
+    "/calendar/apple?lang=th&openExternalBrowser=1",
   );
 
   const googleCalendar = await page.request.get("/api/calendar/google?lang=th", {
@@ -118,11 +118,22 @@ test("serves the save-the-date landing and Worker API from one origin", async ({
     "https://calendar.google.com/calendar/render?",
   );
 
-  const calendarFile = await page.request.get(
-    "/api/calendar/wedding.ics?lang=th",
-  );
+  await page.goto("/calendar/apple?lang=th");
+  await expect(
+    page.getByRole("heading", { name: "เพิ่มลง Apple Calendar" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "ดาวน์โหลดไฟล์ปฏิทิน" }),
+  ).toHaveAttribute("href", "/api/calendar/download?lang=th");
+  await expect(
+    page.getByRole("link", { name: "ดาวน์โหลดไฟล์ปฏิทิน" }),
+  ).toHaveAttribute("download", "warissara-thasarit-wedding.ics");
+
+  const calendarFile = await page.request.get("/api/calendar/download?lang=th");
   await expect(calendarFile).toBeOK();
-  expect(calendarFile.headers()["content-type"]).toContain("text/calendar");
+  expect(calendarFile.headers()["content-type"]).toContain(
+    "application/octet-stream",
+  );
   expect(await calendarFile.text()).toContain(
     "DTSTART;TZID=Asia/Bangkok:20261115T180000",
   );
