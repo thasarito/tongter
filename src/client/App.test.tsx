@@ -54,13 +54,18 @@ describe("App routing", () => {
       await screen.findByRole("button", { name: "เพิ่มลงปฏิทิน" }),
     );
 
-    const googleLink = screen.getByRole("link", { name: "Google Calendar" });
-    expect(googleLink.getAttribute("href")).toContain(
-      "dates=20261115T110000Z%2F20261115T150000Z",
+    expect(
+      screen.getByRole("link", { name: "Google Calendar" }),
+    ).toHaveAttribute(
+      "href",
+      "/api/calendar/google?lang=th&openExternalBrowser=1",
     );
     expect(
       screen.getByRole("link", { name: /Apple Calendar.*Outlook/i }),
-    ).toHaveAttribute("href", "/warissara-thasarit-wedding.ics");
+    ).toHaveAttribute(
+      "href",
+      "/api/calendar/wedding.ics?lang=th&openExternalBrowser=1",
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
