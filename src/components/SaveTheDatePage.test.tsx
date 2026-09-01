@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LanguageProvider } from "@/client/app/LanguageProvider";
+import type { Lang } from "@/shared/i18n";
 import SaveTheDatePage from "./SaveTheDatePage";
 
 interface TestLiff {
@@ -16,10 +17,10 @@ function setWindowLiff(liff: TestLiff | undefined) {
   });
 }
 
-function renderPage() {
+function renderPage(lang: Lang = "en") {
   return render(
     <LanguageProvider>
-      <SaveTheDatePage lang="en" />
+      <SaveTheDatePage lang={lang} />
     </LanguageProvider>,
   );
 }
@@ -49,6 +50,22 @@ describe("SaveTheDatePage viewport behavior", () => {
 
     expect(document.documentElement).not.toHaveClass("save-date-locked");
     expect(document.body).not.toHaveClass("save-date-locked");
+  });
+
+  it("uses natural letter spacing for Thai supporting copy", () => {
+    renderPage("th");
+
+    const naturallySpacedCopy = [
+      screen.getByText("โปรดบันทึกวันสำคัญของเรา"),
+      screen.getByText("บ้านปาร์คนายเลิศ · กรุงเทพฯ"),
+      screen.getByText(
+        "การ์ดเชิญอย่างเป็นทางการและแบบตอบรับจะตามมาเร็ว ๆ นี้",
+      ),
+    ];
+
+    for (const element of naturallySpacedCopy) {
+      expect(element).toHaveClass("tracking-normal");
+    }
   });
 
   it("opens calendar choices as an in-card overlay", () => {
