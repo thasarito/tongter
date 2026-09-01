@@ -231,7 +231,7 @@ export default function SaveTheDatePage({
           </div>
 
           <div className="save-date-rise save-date-delay-3 mx-auto w-full max-w-sm">
-            <p className="text-[0.62rem] uppercase tracking-[0.34em] text-white/64 sm:text-[0.68rem]">
+            <p className="text-[0.62rem] uppercase tracking-normal text-white/64 sm:text-[0.68rem]">
               {copy.saveTheDate}
             </p>
             <time
@@ -240,10 +240,10 @@ export default function SaveTheDatePage({
             >
               15 · 11 · 2026
             </time>
-            <p className="mt-2 text-[0.68rem] font-medium uppercase tracking-[0.24em] text-white/74 sm:text-xs">
+            <p className="mt-2 text-[0.68rem] font-medium uppercase tracking-normal text-white/74 sm:text-xs">
               {location}
             </p>
-            <p className="mx-auto mt-5 max-w-xs text-xs leading-6 text-white/67 sm:text-sm">
+            <p className="mx-auto mt-5 max-w-xs text-xs leading-6 tracking-normal text-white/67 sm:text-sm">
               {copy.invitationToFollow}
             </p>
 
