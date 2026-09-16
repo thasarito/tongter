@@ -80,8 +80,8 @@ export function applyGuestImport(input:StudioLayout,payload:GuestImport,mode:Imp
       else{patch.tableId=tableId;if(!tableId||(!("seatNumber" in patch)&&tableId!==old?.tableId))patch.seatNumber=null;}
     }
     if(patch.reserve===true){patch.tableId="";patch.seatNumber=null;}
-    // Validate all rows together, so explicit seats are reserved before filling gaps.
-    const merged={...old,...patch};delete merged.csvEscaped;delete merged.tableLabel;
+    // Import rows remain untrusted until the whole draft is validated below.
+    const merged:Record<string,unknown>={...old,...patch};delete merged.csvEscaped;delete merged.tableLabel;
     if(index<0)s.guestList.push(merged as unknown as typeof s.guestList[number]);else s.guestList[index]=merged as unknown as typeof s.guestList[number];
   }
   if(payload.legacy)warnings.push("Original seating was retained as reference data; review and distribute source groups into this different venue plan.");
