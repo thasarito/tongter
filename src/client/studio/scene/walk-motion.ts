@@ -2,17 +2,25 @@ import { footprint, pointInside } from "../model/geometry";
 export type WalkDirection="forward"|"back"|"left"|"right";
 const axes:Record<WalkDirection,[number,number]>={forward:[0,1],back:[0,-1],left:[-1,0],right:[1,0]};
 const floor=footprint(64);
-/** Renderer-independent time-based movement. No camera bob or key-repeat jumps. */
+/** Renderer-independent time-based movement. Input wakes an on-demand renderer;
+ * completed movement does not keep consuming GPU/battery while a panel is open. */
 export class WalkMotion {
   x=-11.2;z=-1.65;yaw=Math.PI/2;pitch=.035;targetYaw=Math.PI/2;targetPitch=.035;
   vx=0;vz=0;speed=1.6;fast=false;enabled=true;
   readonly held=new Map<string,[number,number]>();
+  private readonly listeners=new Set<()=>void>();
   constructor(private readonly canMove=(x:number,z:number)=>[[0,0],[.16,0],[-.16,0],[0,.16],[0,-.16]].every(([dx,dz])=>pointInside(x+dx,z+dz,floor))){}
-  press(key:string,direction:WalkDirection){if(this.enabled)this.held.set(key,axes[direction]);}
-  release(key:string){this.held.delete(key);}
-  look(dx:number,dy:number){if(!this.enabled)return;this.targetYaw-=dx*.0028;this.targetPitch=Math.max(-1.05,Math.min(1.15,this.targetPitch-dy*.0025));}
-  stop(){this.held.clear();this.vx=this.vz=0;this.fast=false;this.targetYaw=this.yaw;this.targetPitch=this.pitch;}
-  reset(){this.stop();this.x=-11.2;this.z=-1.65;this.yaw=this.targetYaw=Math.PI/2;this.pitch=this.targetPitch=.035;}
+  subscribe(listener:()=>void){this.listeners.add(listener);return()=>{this.listeners.delete(listener);};}
+  private wake(){for(const listener of this.listeners)listener();}
+  press(key:string,direction:WalkDirection){if(this.enabled){this.held.set(key,axes[direction]);this.wake();}}
+  setAnalog(key:string,right:number,forward:number){
+    if(!this.enabled||!Number.isFinite(right)||!Number.isFinite(forward)||Math.hypot(right,forward)<.001){this.release(key);return;}
+    const scale=Math.max(1,Math.hypot(right,forward));this.held.set(key,[right/scale,forward/scale]);this.wake();
+  }
+  release(key:string){if(this.held.delete(key))this.wake();}
+  look(dx:number,dy:number){if(!this.enabled||!Number.isFinite(dx)||!Number.isFinite(dy)||(!dx&&!dy))return;this.targetYaw-=dx*.0028;this.targetPitch=Math.max(-1.05,Math.min(1.15,this.targetPitch-dy*.0025));this.wake();}
+  stop(){const active=this.moving;this.held.clear();this.vx=this.vz=0;this.fast=false;this.targetYaw=this.yaw;this.targetPitch=this.pitch;if(active)this.wake();}
+  reset(){this.stop();this.x=-11.2;this.z=-1.65;this.yaw=this.targetYaw=Math.PI/2;this.pitch=this.targetPitch=.035;this.wake();}
   get moving(){return this.held.size>0||Math.abs(this.vx)+Math.abs(this.vz)>.001||Math.abs(this.targetYaw-this.yaw)+Math.abs(this.targetPitch-this.pitch)>.00001;}
   update(delta:number):boolean {
     if(!this.enabled||!Number.isFinite(delta)||delta<=0)return false;

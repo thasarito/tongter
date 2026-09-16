@@ -1,0 +1,8 @@
+/* Keep input ownership explicit even when Three controls restore inline styles. */
+.studio-root.studio-immersive .studio-three-view canvas{touch-action:none!important}
+.studio-immersive .studio-brand>div{min-width:0}.studio-immersive .studio-brand h1{overflow:hidden;text-overflow:ellipsis}
+/* Thai font fallback metrics must not make a two-line badge unexpectedly taller. */
+.studio-immersive .studio-seat-name-label[data-compact=true]{width:max-content;max-width:clamp(76px,24vw,104px)!important;min-width:30px;min-height:28px!important;padding:4px 6px!important;font-size:11px!important;line-height:1.35!important;border-radius:5px!important}
+.studio-immersive .studio-seat-name-label[data-compact=true] .studio-seat-label-text{font:inherit;line-height:inherit;max-height:2.7em;overflow:hidden}
+.studio-immersive .studio-seat-name-label[data-compact=true]:focus-visible .studio-seat-label-text{max-height:none}
+@media(max-height:520px) and (orientation:landscape){.studio-root.studio-immersive .studio-brand{display:flex;flex:0 0 32px}.studio-immersive .studio-brand>div{display:none}.studio-immersive .studio-brand a{display:flex;align-items:center;justify-content:center;min-width:32px;min-height:44px}.studio-immersive .studio-toolbar{gap:6px}}
