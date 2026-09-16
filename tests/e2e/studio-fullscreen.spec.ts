@@ -53,7 +53,7 @@ test("guest sheet is independently scrollable and never resizes the scene",async
   await scrolling.evaluate(el=>{el.scrollTop=10000;});
   expect(await scrolling.evaluate(el=>el.scrollTop)).toBeGreaterThan(0);
   expect(await page.evaluate(()=>scrollY)).toBe(0);
-  await testInfo.attach("fullscreen-guest-sheet",{body:await page.screenshot(),contentType:"image/png"});
+  await testInfo.attach("fullscreen-guest-sheet",{body:await page.screenshot({path:testInfo.outputPath("fullscreen-guest-sheet.png")}),contentType:"image/png"});
   await page.getByRole("button",{name:"Close planning tools",exact:true}).click();
   await expect(page.getByRole("complementary",{name:"Planning tools"})).toBeHidden();
   await viewportBounds(page);expect(writes).toHaveLength(0);
@@ -73,7 +73,7 @@ test("mobile names use bounded pixels, retain full accessible names and let walk
   await expect(name).toHaveText("แขกทดสอบชื่อยาวสำหรับมือถือ");
   await expect(name).toHaveAttribute("title","แขกทดสอบชื่อยาวสำหรับมือถือ");
   if(isMobile){await expect(name).toHaveAttribute("data-compact","true");const size=await name.boundingBox();expect(size!.width).toBeLessThanOrEqual(105);expect(size!.height).toBeLessThanOrEqual(45);expect(await name.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(11);}
-  await testInfo.attach("responsive-seat-names",{body:await page.screenshot(),contentType:"image/png"});
+  await testInfo.attach("responsive-seat-names",{body:await page.screenshot({path:testInfo.outputPath("responsive-seat-names.png")}),contentType:"image/png"});
   await page.getByRole("button",{name:"Walk inside",exact:true}).click();
   const walkName=page.locator('.studio-seat-name-label[data-seat-number="1"]');await expect(walkName).toHaveAttribute("data-walking","true");expect(await walkName.evaluate(el=>getComputedStyle(el).pointerEvents)).toBe("none");
 });
@@ -94,7 +94,7 @@ test("joystick moves while a second finger looks, then cancels cleanly",async({p
   }
   await expect(stick).toHaveAttribute("data-active","false");expect(await stick.locator('.studio-joystick-knob').evaluate(el=>getComputedStyle(el).transform)).toBe("matrix(1, 0, 0, 1, 0, 0)");
   await page.getByRole("button",{name:"Guests panel",exact:true}).click();await expect(stick).toBeHidden();await page.getByRole("button",{name:"Close planning tools",exact:true}).click();await expect(stick).toBeVisible();await expect(stick).toHaveAttribute("data-active","false");
-  await testInfo.attach("walking-joystick",{body:await page.screenshot(),contentType:"image/png"});expect(writes).toHaveLength(0);expect(await page.evaluate(()=>scrollY)).toBe(0);
+  await testInfo.attach("walking-joystick",{body:await page.screenshot({path:testInfo.outputPath("walking-joystick.png")}),contentType:"image/png"});expect(writes).toHaveLength(0);expect(await page.evaluate(()=>scrollY)).toBe(0);
 });
 
 test("landscape keeps the scene full size and document styles restore on leaving",async({page})=>{
