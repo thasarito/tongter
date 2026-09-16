@@ -1,5 +1,6 @@
 import { snapshotFromBatchValues } from "@/shared/sheet-records";
 import { SHEET_TABS, type Snapshot } from "@/shared/types";
+import { STUDIO_RANGES, studioSheetSnapshot, type StudioSheetSnapshot } from "@/shared/studio-sheet";
 import type { SheetsApi } from "../google/sheets-api";
 
 const CACHE_TTL_MS = 45_000;
@@ -18,6 +19,7 @@ export interface RsvpSubmission {
 
 export interface SnapshotRepository {
   getSnapshot(): Promise<Snapshot>;
+  getStudioLayout?(): Promise<StudioSheetSnapshot>;
   invalidate(): void;
   appendRsvp(input: RsvpSubmission): Promise<void>;
 }
@@ -31,6 +33,7 @@ export function createSnapshotRepository(deps: {
   const ttlMs = deps.ttlMs ?? CACHE_TTL_MS;
   let snapshot: Snapshot | null = null;
   let inflight: Promise<Snapshot> | null = null;
+  let studioInflight: Promise<StudioSheetSnapshot> | null = null;
   let writeQueue: Promise<unknown> = Promise.resolve();
 
   async function refresh(): Promise<Snapshot> {
@@ -43,6 +46,13 @@ export function createSnapshotRepository(deps: {
   }
 
   return {
+    async getStudioLayout() {
+      // Coalesce simultaneous reads only; never substitute a cached legacy draft.
+      studioInflight ??= deps.api.batchGet(STUDIO_RANGES, true)
+        .then(values => studioSheetSnapshot(values, now()))
+        .finally(() => { studioInflight = null; });
+      return studioInflight;
+    },
     async getSnapshot() {
       if (snapshot && snapshot.fetchedAt > 0 && now() - snapshot.fetchedAt < ttlMs) {
         return snapshot;

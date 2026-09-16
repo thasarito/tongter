@@ -83,6 +83,18 @@ export function adminRoutes(deps: AppDependencies) {
         200,
       );
     })
+    .get("/studio/layout", async (c) => {
+      c.header("Cache-Control", "no-store");
+      const repository = deps.repositoryFor(c.env);
+      if (!repository.getStudioLayout) {
+        return c.json({ status: "unconfigured" as const, source: "Google Sheets" as const, layout: null, fetchedAt: deps.now(), demo: c.env.MOCK_SHEET === "1" }, 200);
+      }
+      try {
+        return c.json(await repository.getStudioLayout(), 200);
+      } catch {
+        return c.json(apiError("STUDIO_SHEET_UNAVAILABLE", "Unable to read a complete, valid studio layout from Google Sheets. Check StudioMeta, StudioGuests and StudioObjects. No older draft was substituted."), 503);
+      }
+    })
     .get("/studio/guests", async (c) => {
       c.header("Cache-Control", "no-store");
       const snapshot = await deps.repositoryFor(c.env).getSnapshot();

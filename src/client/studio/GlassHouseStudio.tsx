@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from "react";
 import type { StudioGuestImport } from "@/shared/studio-guests";
 import { ApiError } from "@/client/api/client";
 import { StudioProvider, useStudio } from "./state/StudioProvider";
+import { SheetConnection, SheetStatus } from "./state/SheetConnection";
 import { GuestDragProvider } from "./interaction/GuestDragProvider";
 import { parseGuestImport } from "./model/exchange";
 import FloorPlan from "./plan/FloorPlan";
@@ -26,12 +27,13 @@ function Workspace({loadSiteGuests,onUnauthorized}:Props){
   const {view,setView,notice,saved,setModal,notify}=useStudio(),[siteBusy,setSiteBusy]=useState(false);
   async function importSiteGuests(){
     if(siteBusy)return;setSiteBusy(true);
-    try{const source=await loadSiteGuests();if(source.status==="unconfigured"||!source.guests.length){notify("No site guests are available. Import a saved layout or guest CSV/JSON instead.");return;}setModal({type:"import",data:parseGuestImport(JSON.stringify(source),"Authenticated site roster.json")});notify(source.status==="stale"?"Preview uses the site's cached roster. Nothing is written to Sheets.":"Review the imported source roster. Original seats are references only.");}
-    catch(cause){if(cause instanceof ApiError&&cause.status===401){notify("Session expired. Sign in again; your saved draft is retained.");onUnauthorized();}else notify("Unable to load the site roster. Your local draft is unchanged.");}
+    try{const source=await loadSiteGuests();if(source.status==="unconfigured"||!source.guests.length){notify("No legacy invitation guests are available.");return;}setModal({type:"import",data:parseGuestImport(JSON.stringify(source),"Legacy invitation roster.json")});notify("This legacy invitation roster is separate from the live StudioGuests tab. Importing it creates local draft changes only.");}
+    catch(cause){if(cause instanceof ApiError&&cause.status===401){notify("Session expired. Sign in again; your saved draft is retained.");onUnauthorized();}else notify("Unable to load the legacy invitation roster. The current layout is unchanged.");}
     finally{setSiteBusy(false);}
   }
   return <main className="studio-root" aria-label="Glass House administrator planning studio">
     <StudioToolbar importSiteGuests={importSiteGuests} siteBusy={siteBusy}/>
+    <SheetStatus/>
     <div className="studio-workspace"><StudioSidebar/><section className="studio-viewport" aria-label="Venue planner">
       {view==="plan"?<FloorPlan/>:<SceneErrorBoundary onPlan={()=>setView("plan")}><Suspense fallback={<div className="studio-render-fallback">Loading the 3D scene… The guest draft stays in memory.</div>}><VenueScene/></Suspense></SceneErrorBoundary>}
     </section></div>
@@ -39,4 +41,6 @@ function Workspace({loadSiteGuests,onUnauthorized}:Props){
     <DialogHost/>
   </main>;
 }
-export default function GlassHouseStudio(props:Props){return <StudioProvider><GuestDragProvider><Workspace {...props}/></GuestDragProvider></StudioProvider>;}
+export default function GlassHouseStudio(props:Props){
+  return <StudioProvider><GuestDragProvider><SheetConnection onUnauthorized={props.onUnauthorized}><Workspace {...props}/></SheetConnection></GuestDragProvider></StudioProvider>;
+}

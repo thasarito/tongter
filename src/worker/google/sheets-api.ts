@@ -5,12 +5,13 @@ export interface ValueRange {
 }
 
 export interface SheetsApi {
-  batchGet(ranges: string[]): Promise<ValueRange[]>;
+  batchGet(ranges: string[], unformatted?: boolean): Promise<ValueRange[]>;
   append(range: string, rows: string[][]): Promise<void>;
 }
 
+const sheetCell = z.union([z.string(), z.number().finite(), z.boolean()]).transform(value => String(value));
 const batchSchema = z.object({
-  valueRanges: z.array(z.object({ values: z.array(z.array(z.string())).optional() })).default([]),
+  valueRanges: z.array(z.object({ values: z.array(z.array(sheetCell)).optional() })).default([]),
 });
 
 const RETRYABLE = new Set([429, 500, 502, 503]);
@@ -46,9 +47,10 @@ export function createSheetsApi(deps: {
   }
 
   return {
-    async batchGet(ranges) {
+    async batchGet(ranges, unformatted = false) {
       const url = new URL(`${base}:batchGet`);
       for (const range of ranges) url.searchParams.append("ranges", range);
+      if (unformatted) url.searchParams.set("valueRenderOption", "UNFORMATTED_VALUE");
       const response = await request("batchGet", url.toString());
       return batchSchema.parse(await response.json()).valueRanges;
     },
