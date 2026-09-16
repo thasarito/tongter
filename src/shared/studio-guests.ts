@@ -34,7 +34,7 @@ export function buildStudioGuestImport(snapshot: Snapshot): StudioGuestImport {
     version: 1,
     status: snapshot.status,
     fetchedAt: snapshot.fetchedAt,
-    guests: snapshot.guests.map(guest => {
+    guests: snapshot.guests.map((guest): StudioGuestImport["guests"][number] => {
       const group = groups.get(guest.groupId);
       const rsvp = latest.get(guest.guestId);
       return {

@@ -12,6 +12,7 @@ import application3 from "./runtime/application-3.js.txt?raw";
 import application4 from "./runtime/application-4.js.txt?raw";
 import integration from "./runtime/integration.js.txt?raw";
 import referenceImage from "../../../docs/seat_plan.jpg?inline";
+import thirdPartyLicense from "./THIRD-PARTY-LICENSES.txt?raw";
 
 // These are trusted source files, not imported user HTML. Guest files are data
 // only and are parsed by GuestModel; they can never supply executable scripts.
@@ -39,5 +40,6 @@ export function createStudioDocument(hostOrigin: string): string {
     + [venueModel, guestModel, seatModel, labelModel, walkMotion, renderer].map(script).join("\n")
     // The four ordered application fragments deliberately form ONE IIFE.
     + script([application1, application2, application3, integration, application4].join("\n"))
+    + `<script type="text/plain" id="third-party-license">${thirdPartyLicense.replace(/<\/script/gi, "<\\/script")}</script>`
     + "</body></html>";
 }
