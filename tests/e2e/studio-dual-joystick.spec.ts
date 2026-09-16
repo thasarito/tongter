@@ -22,6 +22,11 @@ async function openWalk(page: Page) {
   await expect(page.locator(".studio-plan .studio-name-badge")).toHaveCount(1);
   await chooseView(page, "Walk inside");
   await expect(page.locator(".studio-three-view canvas")).toBeVisible();
+  // A visible canvas can precede R3F initialization. Calling getContext before
+  // Three does would create a context with default preserveDrawingBuffer=false.
+  // The scene-owned Html label cannot mount until its renderer is initialized.
+  await expect(page.locator('.studio-seat-name-label[data-walking="true"]')).toBeVisible({ timeout: 20_000 });
+  await expect.poll(() => frame(page), { timeout: 15_000 }).toMatch(/[1-9]/);
   return { writes, errors };
 }
 async function center(stick: Locator) {
@@ -33,6 +38,7 @@ async function center(stick: Locator) {
 const frame = (page: Page) => page.locator(".studio-three-view canvas").evaluate((canvas: HTMLCanvasElement) => {
   const gl = canvas.getContext("webgl2");
   if (!gl || gl.isContextLost()) throw Error("Expected a real WebGL renderer");
+  if (!gl.getContextAttributes()?.preserveDrawingBuffer) throw Error("Readback requires the scene's initialized, preserved WebGL context");
   const pixel = new Uint8Array(4), samples: number[] = [];
   for (const x of [.15, .3, .5, .7, .85]) for (const y of [.2, .4, .6, .8]) {
     gl.readPixels(Math.floor(x * canvas.width), Math.floor(y * canvas.height), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
@@ -42,7 +48,7 @@ const frame = (page: Page) => page.locator(".studio-three-view canvas").evaluate
 });
 async function settledFrame(page: Page) {
   let previous = "", stable = 0;
-  await expect.poll(async () => { const current = await frame(page); stable = current === previous ? stable + 1 : 0; previous = current; return stable; }, { timeout: 15_000, intervals: [150] }).toBeGreaterThanOrEqual(3);
+  await expect.poll(async () => { const current = await frame(page); stable = /[1-9]/.test(current) && current === previous ? stable + 1 : 0; previous = current; return stable; }, { timeout: 15_000, intervals: [150] }).toBeGreaterThanOrEqual(3);
   return previous;
 }
 async function neutral(stick: Locator) {
