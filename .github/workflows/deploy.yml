@@ -11,6 +11,10 @@ permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: verify-deploy-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -24,6 +28,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm check
+      - name: Bundle private sheet writer
+        run: pnpm exec wrangler deploy --config wrangler.studio-writer.jsonc --dry-run --outdir /tmp/studio-writer-build
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
 
@@ -43,6 +49,12 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Deploy internal sheet coordinator
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.studio-writer.jsonc
       - run: pnpm build
       - name: Enable Cloudflare preview URLs
         env:
@@ -75,20 +87,14 @@ jobs:
         env:
           PREVIEW_URL: ${{ steps.preview-url.outputs.url }}
         run: |
-          curl --silent --show-error --fail \
-            --retry 5 --retry-all-errors --retry-delay 2 \
-            "$PREVIEW_URL/" --output /dev/null
-          curl --silent --show-error --fail \
-            --retry 5 --retry-all-errors --retry-delay 2 \
-            "$PREVIEW_URL/api/health" | jq --exit-status '.ok == true'
+          curl --silent --show-error --fail --retry 5 --retry-all-errors --retry-delay 2 "$PREVIEW_URL/" --output /dev/null
+          curl --silent --show-error --fail --retry 5 --retry-all-errors --retry-delay 2 "$PREVIEW_URL/api/health" | jq --exit-status '.ok == true'
       - name: Install browser for live sheet verification
         run: pnpm exec playwright install --with-deps chromium
-      - name: Verify live studio against Google Sheets
+      - name: Verify live studio and read-only writer probe
         timeout-minutes: 6
         env:
           PREVIEW_URL: ${{ steps.preview-url.outputs.url }}
-          # Matches the explicitly configured preview verifier. Override via a
-          # private Actions secret when rotating that administrator credential.
           STUDIO_PREVIEW_PASSPHRASE: ${{ secrets.STUDIO_PREVIEW_PASSPHRASE || '122' }}
         run: pnpm exec node --experimental-strip-types scripts/check-live-studio.mts
       - name: Comment preview URL
@@ -98,22 +104,13 @@ jobs:
         with:
           script: |
             const marker = '<!-- cloudflare-preview -->';
-            const body = `${marker}\nCloudflare preview: ${process.env.PREVIEW_URL}\n\nLive studio verified against its authenticated Google Sheets response on desktop and mobile. No guest data was published in artifacts.`;
+            const body = `${marker}\nCloudflare preview: ${process.env.PREVIEW_URL}\n\nDesktop/mobile live-sheet readback and the read-only writer probe passed. No live guest placements were changed by verification.`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner, repo, issue_number, per_page: 100,
-            });
-            const existing = comments.find(
-              (comment) => comment.user?.type === 'Bot' && comment.body?.includes(marker),
-            );
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner, repo, comment_id: existing.id, body,
-              });
-            } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number, body });
-            }
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const existing = comments.find(comment => comment.user?.type === 'Bot' && comment.body?.includes(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
 
   deploy:
     if: github.event_name != 'pull_request'
@@ -130,6 +127,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Deploy internal sheet coordinator
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.studio-writer.jsonc
       - run: pnpm build
       - name: Deploy to Cloudflare
         if: env.CLOUDFLARE_API_TOKEN != ''

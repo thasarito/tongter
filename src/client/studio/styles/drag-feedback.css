@@ -1,0 +1,16 @@
+/* SVG uses metre-based user units: paint a non-scaling shape stroke, not a
+   browser outline that expands into a metre-wide rectangle when zoomed. */
+.studio-root svg [data-drag-over],.studio-modal svg [data-drag-over],
+.studio-root svg :focus,.studio-modal svg :focus,
+.studio-root svg :focus-visible,.studio-modal svg :focus-visible{outline:none!important;outline-offset:0!important;box-shadow:none!important}
+.studio-root svg [data-drag-over] rect,.studio-modal svg [data-drag-over] rect,
+.studio-root svg polygon[data-drag-over],.studio-modal svg polygon[data-drag-over],
+.studio-root svg [data-guest-drag]:focus-visible rect,.studio-modal svg [data-guest-drag]:focus-visible rect{vector-effect:non-scaling-stroke;stroke-width:2px!important}
+.studio-root svg [data-drag-over=valid] rect,.studio-modal svg [data-drag-over=valid] rect,.studio-root svg polygon[data-drag-over=valid]{stroke:#348751!important}
+.studio-root svg [data-drag-over=invalid] rect,.studio-modal svg [data-drag-over=invalid] rect,.studio-root svg polygon[data-drag-over=invalid]{stroke:#b35e3b!important}
+.studio-root svg [data-guest-drag]:focus-visible rect,.studio-modal svg [data-guest-drag]:focus-visible rect{stroke:#a78341}
+.studio-root [data-guest-drag],.studio-modal [data-guest-drag],
+.studio-root [data-guest-drag] *,.studio-modal [data-guest-drag] *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-user-drag:none;touch-action:none;-webkit-tap-highlight-color:transparent}
+body.studio-pointer-dragging,body.studio-pointer-dragging *{-webkit-user-select:none!important;user-select:none!important;cursor:grabbing!important}
+.studio-root[data-saving=true] [data-guest-drag]{cursor:progress!important}
+.studio-drag-ghost{max-width:min(250px,85vw);max-height:140px;overflow:hidden;contain:layout paint;pointer-events:none}

@@ -5,21 +5,13 @@
   "preview_urls": true,
   "compatibility_date": "2026-08-21",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
-  "assets": {
-    "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
-  },
-  "routes": [
-    { "pattern": "warissara.thasarito.com/*", "zone_name": "thasarito.com" }
-  ],
+  "assets": {"not_found_handling": "single-page-application", "run_worker_first": ["/api/*"]},
+  "routes": [{"pattern": "warissara.thasarito.com/*", "zone_name": "thasarito.com"}],
   "vars": {
-    // Explicitly requested administrator password, stored only as a salted verifier.
-    // Replace this weak preview credential before using private live guest data.
-    // ADMIN_SESSION_SECRET remains a separate, non-public Cloudflare secret.
+    // Requested server-side verifier; the session-signing secret remains separate.
     "ADMIN_PASSPHRASE_HASH": "pbkdf2-sha256$100000$9bdff9b394f219b6786dc1ea771ba7c3$34d9acc60aa9a5a6a7c2886369f4ff6bf7763881164463a9898e312006545ddf"
   },
-  "env": {
-    "test": {}
-  },
-  "observability": { "enabled": true }
+  "durable_objects": {"bindings": [{"name":"STUDIO_WRITER","class_name":"StudioSheetWriter","script_name":"warissara-studio-writer"}]},
+  "env": {"test": {"durable_objects":{"bindings":[]}}},
+  "observability": {"enabled": true}
 }

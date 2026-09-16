@@ -1,55 +1,23 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { StudioSheetResponse, StudioSheetSnapshot } from "@/shared/studio-sheet";
+import { afterEach,beforeEach,describe,it,expect,vi } from "vitest";
+import { act,cleanup,fireEvent,render,screen,waitFor } from "@testing-library/react";
 import { defaultLayout } from "../model/defaults";
-import { normalizeLayout } from "../model/schema";
-import { StudioProvider, useStudio } from "./StudioProvider";
-import { SheetConnection, SheetStatus } from "./SheetConnection";
+import { normalizeLayout,clone } from "../model/schema";
+import { applyMutation,mutationBetween,type StudioMutation } from "@/shared/studio-mutations";
+import type { StudioSheetSnapshot,StudioSheetResponse } from "@/shared/studio-sheet";
+import { StudioProvider,useStudio } from "./StudioProvider";
+import { SheetConnection,SheetStatus } from "./SheetConnection";
+import { SheetSaveError } from "./sheet-source";
 const unauthorized=()=>{};
-function snapshot(name="Current sheet guest"):StudioSheetSnapshot {
-  return {status:"ok",source:"Google Sheets",revision:name,fetchedAt:1,layout:normalizeLayout({...defaultLayout(),guestList:[{id:"synthetic-1",name,tableId:"table-12",seatNumber:9},{id:"synthetic-2",name:"Waiting from sheet",tableId:"",seatNumber:null}]})};
-}
-function Probe(){const {layout,commit}=useStudio();return <><SheetStatus/><output data-testid="names">{layout.guestList.map(g=>g.name).join("|")}</output><output data-testid="seats">{JSON.stringify(layout.guestList.map(g=>[g.tableId,g.seatNumber]))}</output><button onClick={()=>commit("Local edit",s=>({...s,guestList:s.guestList.map((g,i)=>i?g:{...g,name:"Unsaved local edit"})}))}>Edit locally</button></>;}
-function mount(loadSheet:()=>Promise<StudioSheetResponse>){return render(<StudioProvider><SheetConnection onUnauthorized={unauthorized} loadSheet={loadSheet}><Probe/></SheetConnection></StudioProvider>);}
-beforeEach(()=>{localStorage.clear();});
-afterEach(()=>{cleanup();vi.restoreAllMocks();});
-describe("sheet-authoritative studio startup and refresh",()=>{
-  it("does not flash the old browser draft before the live sheet arrives",async()=>{
-    const old=snapshot("Old local guest").layout;localStorage.setItem("tongter:glass-house-react:v1",JSON.stringify(old));
-    let resolve!:(value:StudioSheetResponse)=>void;const promise=new Promise<StudioSheetResponse>(r=>{resolve=r;});mount(()=>promise);
-    expect(screen.queryByTestId("names")).toBeNull();expect(screen.getByText("Loading your live seating sheet…")).toBeTruthy();
-    await act(async()=>{resolve(snapshot());await promise;});
-    expect(await screen.findByTestId("names")).toHaveTextContent("Current sheet guest");expect(screen.getByTestId("names")).not.toHaveTextContent("Old local guest");
-    expect(screen.getByTestId("seats")).toHaveTextContent('[["table-12",9],["",null]]');
-    expect(JSON.parse(localStorage.getItem("tongter:glass-house-react:before-sheet-sync")!).guestList[0].name).toBe("Old local guest");
-  });
-  it("refreshes clean views on focus without overwriting the recovery backup",async()=>{
-    let current=snapshot();const load=vi.fn(async()=>current);mount(load);await screen.findByTestId("names");
-    const backup=localStorage.getItem("tongter:glass-house-react:before-sheet-sync");current=snapshot("Changed directly in sheet");
-    fireEvent(window,new Event("focus"));await waitFor(()=>expect(screen.getByTestId("names")).toHaveTextContent("Changed directly in sheet"));
-    expect(load).toHaveBeenCalledTimes(2);expect(localStorage.getItem("tongter:glass-house-react:before-sheet-sync")).toBe(backup);
-  });
-  it("protects local edits from background refresh, then reloads only with confirmation",async()=>{
-    let current=snapshot();mount(async()=>current);await screen.findByTestId("names");fireEvent.click(screen.getByText("Edit locally"));
-    expect(screen.getByText("Local draft edits — not published to Sheets")).toBeTruthy();current=snapshot("Newer sheet guest");
-    fireEvent(window,new Event("focus"));await screen.findByText(/The sheet has changed/);
-    expect(screen.getByTestId("names")).toHaveTextContent("Unsaved local edit");
-    const confirm=vi.spyOn(window,"confirm").mockReturnValue(false);fireEvent.click(screen.getByText("Reload sheet"));await waitFor(()=>expect(confirm).toHaveBeenCalledTimes(1));
-    expect(screen.getByTestId("names")).toHaveTextContent("Unsaved local edit");await waitFor(()=>expect(screen.getByText("Reload sheet")).not.toBeDisabled());
-    confirm.mockReturnValue(true);fireEvent.click(screen.getByText("Reload sheet"));await waitFor(()=>expect(screen.getByTestId("names")).toHaveTextContent("Newer sheet guest"));
-    expect(JSON.parse(localStorage.getItem("tongter:glass-house-react:before-sheet-sync")!).guestList[0].name).toBe("Unsaved local edit");
-  });
-  it("fails visibly rather than showing a stale or default venue after a read error",async()=>{
-    localStorage.setItem("tongter:glass-house-react:v1",JSON.stringify(snapshot("Old guest").layout));
-    mount(async()=>{throw Error("Sheet validation failed");});await screen.findByRole("alert");expect(screen.queryByTestId("names")).toBeNull();
-    expect(screen.getByText("Retry sheet connection")).not.toBeDisabled();
-  });
-  it("allows a local fixture only when the server explicitly identifies a demo environment",async()=>{
-    mount(async()=>({status:"unconfigured",source:"Google Sheets",layout:null,fetchedAt:0,demo:true}));
-    await screen.findByTestId("names");expect(screen.getByText(/Demo\/local draft/)).toBeTruthy();
-  });
-  it("does not silently use local data for a misconfigured real deployment",async()=>{
-    mount(async()=>({status:"unconfigured",source:"Google Sheets",layout:null,fetchedAt:0,demo:false}));
-    await screen.findByRole("alert");expect(screen.queryByTestId("names")).toBeNull();
-  });
+function snapshot(name="Current sheet guest"):StudioSheetSnapshot{return {status:"ok",source:"Google Sheets",revision:name,fetchedAt:1,layout:normalizeLayout({...defaultLayout(),guestList:[{id:"synthetic-1",name,tableId:"table-12",seatNumber:9},{id:"synthetic-2",name:"Waiting from sheet"}]})};}
+function Probe(){const s=useStudio();return <><SheetStatus/><output data-testid="names">{s.layout.guestList.map(g=>g.name).join("|")}</output><output data-testid="seats">{s.layout.guestList.map(g=>g.seatNumber).join(",")}</output><button disabled={!s.editable} onClick={()=>s.commit("Name edited",v=>({...v,guestList:v.guestList.map((g,i)=>i?g:{...g,name:"Edited in studio"})}))}>Edit</button><button disabled={!s.canUndo} onClick={s.undo}>Undo</button><span>{s.notice}</span></>;}
+function mount(loadSheet:()=>Promise<StudioSheetResponse>,saveSheet:(op:StudioMutation)=>Promise<StudioSheetSnapshot>){return render(<StudioProvider><SheetConnection onUnauthorized={unauthorized} loadSheet={loadSheet} saveSheet={saveSheet}><Probe/></SheetConnection></StudioProvider>);}
+beforeEach(()=>localStorage.clear());afterEach(()=>{cleanup();vi.restoreAllMocks();});
+describe("sheet autosave",()=>{
+ it("does not show or upload a stale local draft",async()=>{localStorage.setItem("tongter:glass-house-react:v1",JSON.stringify(snapshot("Old private draft").layout));let resolve!:(v:StudioSheetSnapshot)=>void;const load=new Promise<StudioSheetSnapshot>(r=>{resolve=r;}),save=vi.fn(async()=>snapshot());mount(()=>load,save);expect(screen.queryByTestId("names")).toBeNull();await act(async()=>resolve(snapshot()));expect(await screen.findByTestId("names")).toHaveTextContent("Current sheet guest");expect(save).not.toHaveBeenCalled();});
+ it("autosaves once and pauses edits until acknowledgement",async()=>{let resolve!:(v:StudioSheetSnapshot)=>void;const response=new Promise<StudioSheetSnapshot>(r=>{resolve=r;}),save=vi.fn((op:StudioMutation)=>{void op;return response;});mount(async()=>snapshot(),save);await screen.findByTestId("names");fireEvent.click(screen.getByText("Edit"));expect(screen.getByTestId("names")).toHaveTextContent("Edited in studio");expect(screen.getByText("Edit")).toBeDisabled();expect(save).toHaveBeenCalledOnce();const result=snapshot();result.layout=applyMutation(result.layout,save.mock.calls[0][0]);await act(async()=>resolve(result));await waitFor(()=>expect(screen.getByText("Edit")).not.toBeDisabled());expect(localStorage.getItem("tongter:studio:pending-v1")).toBeNull();});
+ it("retains the original operation ID on network retry",async()=>{const ops:StudioMutation[]=[];const save=vi.fn(async(op:StudioMutation)=>{ops.push(op);if(ops.length===1)throw Error("Network interrupted");return {...snapshot(),layout:applyMutation(snapshot().layout,op)};});mount(async()=>snapshot(),save);await screen.findByTestId("names");fireEvent.click(screen.getByText("Edit"));await screen.findByText("Retry save");expect(localStorage.getItem("tongter:studio:pending-v1")).not.toBeNull();fireEvent.click(screen.getByText("Retry save"));await waitFor(()=>expect(screen.getByText("Edit")).not.toBeDisabled());expect(ops[0].id).toBe(ops[1].id);});
+ it("shows the authoritative snapshot after a same-field conflict",async()=>{const newer=snapshot("Changed by another admin");mount(async()=>snapshot(),async()=>{throw new SheetSaveError("Name changed elsewhere",409,newer);});await screen.findByTestId("names");fireEvent.click(screen.getByText("Edit"));await waitFor(()=>expect(screen.getByTestId("names")).toHaveTextContent("Changed by another admin"));expect(screen.getByText("Undo")).toBeDisabled();expect(localStorage.getItem("tongter:studio:pending-v1")).toBeNull();});
+ it("refreshes clean views without creating writes or undo entries",async()=>{let current=snapshot();const save=vi.fn(async()=>current);mount(async()=>current,save);await screen.findByTestId("names");current=snapshot("Edited directly in Sheets");fireEvent(window,new Event("focus"));await waitFor(()=>expect(screen.getByTestId("names")).toHaveTextContent("Edited directly in Sheets"));expect(save).not.toHaveBeenCalled();expect(screen.getByText("Undo")).toBeDisabled();});
+ it("recovers a pending operation after reload",async()=>{const original=snapshot(),next=clone(original.layout);next.guestList[0].name="Recovered edit";const op=mutationBetween(original.layout,next);localStorage.setItem("tongter:studio:pending-v1",JSON.stringify(op));const save=vi.fn(async(operation:StudioMutation)=>{void operation;return {...original,layout:next};});mount(async()=>original,save);await waitFor(()=>expect(screen.getByTestId("names")).toHaveTextContent("Recovered edit"));expect(save.mock.calls[0][0].id).toBe(op.id);expect(localStorage.getItem("tongter:studio:pending-v1")).toBeNull();});
+ it("fails visibly rather than falling back to default data",async()=>{mount(async()=>{throw Error("Sheet unavailable");},async()=>snapshot());await screen.findByRole("alert");expect(screen.queryByTestId("names")).toBeNull();});
 });

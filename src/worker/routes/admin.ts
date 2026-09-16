@@ -1,8 +1,4 @@
-import {
-  allowDietaryOther,
-  dietaryOptions,
-  siteUrl,
-} from "@/shared/event-config";
+import { allowDietaryOther, dietaryOptions, siteUrl } from "@/shared/event-config";
 import { isLang, type Lang } from "@/shared/i18n";
 import { buildAdminView, buildQrSheetView } from "@/shared/views";
 import { buildStudioGuestImport } from "@/shared/studio-guests";
@@ -12,99 +8,29 @@ import { z } from "zod";
 import type { AppDependencies } from "../dependencies";
 import type { WorkerBindings } from "../env";
 import { configuredPassphraseMatches } from "../auth/admin-password";
-import {
-  ADMIN_COOKIE,
-  ADMIN_MAX_AGE_SECONDS,
-  createAdminSession,
-  verifyAdminSession,
-} from "../auth/admin-session";
+import { ADMIN_COOKIE, ADMIN_MAX_AGE_SECONDS, createAdminSession, verifyAdminSession } from "../auth/admin-session";
 import { apiError } from "../contracts";
-
-function language(raw: string | undefined): Lang {
-  return raw && isLang(raw) ? raw : "th";
-}
-
-const loginSchema = z.object({ passphrase: z.string().min(1).max(500) });
-
-export function adminRoutes(deps: AppDependencies) {
-  return new Hono<{ Bindings: WorkerBindings }>()
-    .post("/login", async (c) => {
-      const parsed = loginSchema.safeParse(await c.req.json().catch(() => null));
-      if (
-        !parsed.success ||
-        !c.env.ADMIN_SESSION_SECRET ||
-        !(await configuredPassphraseMatches(parsed.data.passphrase, c.env))
-      ) {
-        return c.json(apiError("UNAUTHORIZED", "Invalid passphrase."), 401);
-      }
-      const token = await createAdminSession({
-        secret: c.env.ADMIN_SESSION_SECRET,
-        now: deps.now,
-      });
-      setCookie(c, ADMIN_COOKIE, token, {
-        path: "/api/admin",
-        httpOnly: true,
-        secure: true,
-        sameSite: "Lax",
-        maxAge: ADMIN_MAX_AGE_SECONDS,
-      });
-      return c.body(null, 204);
+import { studioWriteRoutes } from "./studio-write";
+function language(raw:string|undefined):Lang{return raw&&isLang(raw)?raw:"th";}
+const loginSchema=z.object({passphrase:z.string().min(1).max(500)});
+export function adminRoutes(deps:AppDependencies){
+  return new Hono<{Bindings:WorkerBindings}>()
+    .post("/login",async c=>{
+      const parsed=loginSchema.safeParse(await c.req.json().catch(()=>null));
+      if(!parsed.success||!c.env.ADMIN_SESSION_SECRET||!(await configuredPassphraseMatches(parsed.data.passphrase,c.env)))return c.json(apiError("UNAUTHORIZED","Invalid passphrase."),401);
+      const token=await createAdminSession({secret:c.env.ADMIN_SESSION_SECRET,now:deps.now});
+      setCookie(c,ADMIN_COOKIE,token,{path:"/api/admin",httpOnly:true,secure:true,sameSite:"Lax",maxAge:ADMIN_MAX_AGE_SECONDS});return c.body(null,204);
     })
-    .use("*", async (c, next) => {
-      const token = getCookie(c, ADMIN_COOKIE);
-      if (
-        !token ||
-        !c.env.ADMIN_SESSION_SECRET ||
-        !(await verifyAdminSession(token, {
-          secret: c.env.ADMIN_SESSION_SECRET,
-          now: deps.now,
-        }))
-      ) {
-        return c.json(apiError("UNAUTHORIZED", "Authentication required."), 401);
-      }
-      await next();
+    .use("*",async(c,next)=>{const token=getCookie(c,ADMIN_COOKIE);if(!token||!c.env.ADMIN_SESSION_SECRET||!(await verifyAdminSession(token,{secret:c.env.ADMIN_SESSION_SECRET,now:deps.now})))return c.json(apiError("UNAUTHORIZED","Authentication required."),401);await next();})
+    .route("/studio",studioWriteRoutes())
+    .post("/logout",c=>{deleteCookie(c,ADMIN_COOKIE,{path:"/api/admin",secure:true});return c.body(null,204);})
+    .post("/sync",c=>{deps.repositoryFor(c.env).invalidate();return c.body(null,204);})
+    .get("/summary",async c=>{const snapshot=await deps.repositoryFor(c.env).getSnapshot();return c.json(buildAdminView(snapshot,{lang:language(c.req.query("lang")),dietaryOptions,allowDietaryOther}),200);})
+    .get("/studio/layout",async c=>{
+      c.header("Cache-Control","no-store");const repository=deps.repositoryFor(c.env);
+      if(!repository.getStudioLayout)return c.json({status:"unconfigured" as const,source:"Google Sheets" as const,layout:null,fetchedAt:deps.now(),demo:c.env.MOCK_SHEET==="1"},200);
+      try{return c.json(await repository.getStudioLayout(),200);}catch{return c.json(apiError("STUDIO_SHEET_UNAVAILABLE","Unable to read a complete, valid studio layout from Google Sheets. Check StudioMeta, StudioGuests and StudioObjects. No older draft was substituted."),503);}
     })
-    .post("/logout", (c) => {
-      deleteCookie(c, ADMIN_COOKIE, { path: "/api/admin", secure: true });
-      return c.body(null, 204);
-    })
-    .post("/sync", (c) => {
-      deps.repositoryFor(c.env).invalidate();
-      return c.body(null, 204);
-    })
-    .get("/summary", async (c) => {
-      const snapshot = await deps.repositoryFor(c.env).getSnapshot();
-      return c.json(
-        buildAdminView(snapshot, {
-          lang: language(c.req.query("lang")),
-          dietaryOptions,
-          allowDietaryOther,
-        }),
-        200,
-      );
-    })
-    .get("/studio/layout", async (c) => {
-      c.header("Cache-Control", "no-store");
-      const repository = deps.repositoryFor(c.env);
-      if (!repository.getStudioLayout) {
-        return c.json({ status: "unconfigured" as const, source: "Google Sheets" as const, layout: null, fetchedAt: deps.now(), demo: c.env.MOCK_SHEET === "1" }, 200);
-      }
-      try {
-        return c.json(await repository.getStudioLayout(), 200);
-      } catch {
-        return c.json(apiError("STUDIO_SHEET_UNAVAILABLE", "Unable to read a complete, valid studio layout from Google Sheets. Check StudioMeta, StudioGuests and StudioObjects. No older draft was substituted."), 503);
-      }
-    })
-    .get("/studio/guests", async (c) => {
-      c.header("Cache-Control", "no-store");
-      const snapshot = await deps.repositoryFor(c.env).getSnapshot();
-      return c.json(buildStudioGuestImport(snapshot), 200);
-    })
-    .get("/qr", async (c) => {
-      const snapshot = await deps.repositoryFor(c.env).getSnapshot();
-      return c.json(
-        buildQrSheetView(snapshot, language(c.req.query("lang")), siteUrl),
-        200,
-      );
-    });
+    .get("/studio/guests",async c=>{c.header("Cache-Control","no-store");return c.json(buildStudioGuestImport(await deps.repositoryFor(c.env).getSnapshot()),200);})
+    .get("/qr",async c=>{const snapshot=await deps.repositoryFor(c.env).getSnapshot();return c.json(buildQrSheetView(snapshot,language(c.req.query("lang")),siteUrl),200);});
 }
