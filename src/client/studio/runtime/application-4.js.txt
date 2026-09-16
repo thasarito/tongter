@@ -1,0 +1,108 @@
+// Numbered chair inspector. State lives only in the existing master guest roster.
+function planSeatAtPoint(x,y){
+ const svg=$('plan-svg');if(!svg||!options.chairs||!options.tables)return null;
+ const r=svg.getBoundingClientRect();if(x<r.left||x>r.right||y<r.top||y>r.bottom)return null;
+ const p=planAt({clientX:x,clientY:y},svg);let best=null,distance=.30*.30;
+ for(const t of tables())for(const slot of S.slots(state,t.id)){const d=(p.x-slot.worldX)**2+(p.y-slot.worldZ)**2;if(d<distance){distance=d;best={tableId:t.id,seatNumber:slot.number};}}
+ return best;
+}
+function seatOccupant(tableId,number){return state.guestList.find(g=>g.tableId===tableId&&g.seatNumber===number)||null;}
+function seatDescription(tableId,number){const g=seatOccupant(tableId,number);return `${tableLabel(tableId)} · Seat ${number}\n${g?g.name:'Empty · click to assign'}${g?'\n'+[g.host,g.group].filter(Boolean).join(' · '):''}`;}
+function showSeatTip(tableId,number,x,y){const tip=$('seat-tooltip');if(!tableId||guestDrag?.active){tip.hidden=true;return;}tip.textContent=seatDescription(tableId,number);tip.hidden=false;tip.style.left=Math.max(8,Math.min(innerWidth-tip.offsetWidth-10,x+15))+'px';tip.style.top=Math.max(8,Math.min(innerHeight-tip.offsetHeight-10,y+18))+'px';}
+function hideSeatTip(){$('seat-tooltip').hidden=true;}
+function chooseSeat(number){const t=tables().find(t=>t.id===seatTableId);if(!t)return;seatNumber=Math.max(1,Math.min(t.seats,number));seatPickedId=null;setGuestError('seat-map-error','');renderSeatMap();}
+function openSeatMap(tableId,number=null){
+ const table=tables().find(t=>t.id===tableId);if(!table)return;
+ hideSeatTip();seatTableId=tableId;seatNumber=number||S.nextEmpty(state,tableId)||1;seatPickedId=null;
+ selected=tableId;renderLists();renderInspector();markSelection();scene?.setLayout(state,selected,options,warnings);
+ $('seat-guest-search').value='';$('seat-guest-filter').value='unassigned';setGuestError('seat-map-error','');
+ renderSeatMap(true);$('seat-map-status').textContent='Choose a numbered chair, then a guest. Dragging onto a chair assigns that exact seat.';
+ if(!$('seat-map-dialog').open)$('seat-map-dialog').showModal();$('seat-map-close').focus({preventScroll:true});
+}
+function seatDiagramSVG(t,number=seatNumber){
+ const slots=S.slots(state,t.id),dx=slots.map(s=>s.worldX-t.x),dz=slots.map(s=>s.worldZ-t.z);
+ const names=options.guestNames?L.diagram(state,t.id,text=>measureName(text,11.5)):null;
+ const scale=names?names.scale:Math.min(155/(Math.max(...dx.map(Math.abs))+.28),93/(Math.max(...dz.map(Math.abs))+.28));
+ const cx=245,cy=names?names.centerY:142,height=names?names.height:270;
+ const closest=slots.length>1?Math.min(...slots.flatMap((a,i)=>slots.slice(i+1).map(b=>Math.hypot(a.x-b.x,a.z-b.z))))*scale:100;
+ const half=Math.min(17,closest*.34),hitRadius=Math.min(25,closest*.47),fontSize=Math.min(14,Math.max(8,half*.86));
+ const tableTop=t.shape==='rect'?`<rect x="${-t.w/2*scale}" y="${-t.d/2*scale}" width="${t.w*scale}" height="${t.d*scale}" rx="8"/>`:`<ellipse rx="${t.w/2*scale}" ry="${t.d/2*scale}"/>`;
+ let out=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 490 ${height}" role="group" aria-label="${escape(tableLabel(t.id))}, chairs and assigned guest names"><text x="14" y="18" font-size="9" fill="#8b957e" letter-spacing="1">↑ TOP OF FLOOR PLAN</text><g transform="translate(${cx} ${cy}) rotate(${t.rotation})" fill="#e3e9d7" stroke="#b2c0a1" stroke-width="1.5">${tableTop}</g><text x="${cx}" y="${cy-9}" text-anchor="middle" font-size="10" letter-spacing="2" fill="#738366">TABLE</text><text x="${cx}" y="${cy+21}" text-anchor="middle" font-family="Georgia,serif" font-size="26" fill="#3b5a42">${escape(t.label)}</text>`;
+ if(names)out+=names.labels.map(l=>nameBadgeSVG(l,{detail:true,tableId:t.id,active:l.number===number})).join('');
+ for(const s of slots){const x=cx+(s.worldX-t.x)*scale,y=cy+(s.worldZ-t.z)*scale,active=s.number===number;
+ out+=`<g class="seat-detail-chair ${s.guest?'occupied':'empty'}" data-seat-select="${s.number}" data-guest-drop-table="${escape(t.id)}" data-guest-drop-seat="${s.number}" ${s.guest?`data-drag-guest="${escape(s.guest.id)}"`:''} role="button" tabindex="0" aria-label="Seat ${s.number}: ${escape(s.guest?.name||'Empty')}" aria-pressed="${active}" transform="translate(${x} ${y})"><title>${escape(seatDescription(t.id,s.number))}</title><circle r="${hitRadius}" fill="transparent"/><rect class="detail-chair-shape" x="${-half}" y="${-half}" width="${half*2}" height="${half*2}" rx="${half*.55}" fill="${s.guest?'#37654d':'#fffdf4'}" stroke="${active?'#b98837':s.guest?'#37654d':'#acb69a'}" stroke-width="${active?4:1.4}"/><text text-anchor="middle" y="${fontSize*.35}" font-size="${fontSize}" font-weight="600" fill="${s.guest?'#ffffff':'#637b53'}" pointer-events="none">${s.number}</text>${s.guest?`<circle cx="${half*.8}" cy="${-half*.88}" r="${Math.min(5,half*.3)}" fill="#b5c9a4" stroke="#fffdf4" stroke-width="1"/>`:''}</g>`;
+ }return out+'</svg>';
+}
+function renderSeatMap(force=false){
+ if(!force&&!$('seat-map-dialog').open)return;
+ const t=tables().find(t=>t.id===seatTableId);if(!t){$('seat-map-dialog').close();return;}
+ seatNumber=Math.max(1,Math.min(t.seats,seatNumber));const list=S.slots(state,t.id),assigned=list.filter(s=>s.guest).length,occupant=seatOccupant(t.id,seatNumber);
+ $('seat-map-title').textContent=tableLabel(t.id);$('seat-map-table').innerHTML=tables().map(t=>`<option value="${escape(t.id)}">Table ${escape(t.label)}</option>`).join('');$('seat-map-table').value=t.id;
+ $('seat-map-occupancy').textContent=`${assigned} assigned · ${t.seats-assigned} empty · ${t.seats} seats`;
+ $('seat-map-diagram').classList.toggle('with-guest-names',options.guestNames);$('seat-map-diagram').innerHTML=seatDiagramSVG(t);
+ const roster=$('seat-map-roster'),top=roster.scrollTop;
+ roster.innerHTML=list.map(s=>`<div class="seat-roster-row ${s.guest?'occupied':'available'} ${s.number===seatNumber?'active':''}" data-guest-drop-table="${escape(t.id)}" data-guest-drop-seat="${s.number}"><button type="button" data-seat-select="${s.number}" aria-pressed="${s.number===seatNumber}" aria-label="Seat ${s.number}: ${escape(s.guest?.name||'Empty, assign a guest')}"><span class="seat-roster-number">${s.number}</span><span class="seat-roster-name">${s.guest?guestName(s.guest):'Empty seat'}<small>${s.guest?escape([s.guest.host,s.guest.group].filter(Boolean).join(' · ')):'Click to assign'}</small></span></button>${s.guest?dragHandle(s.guest):''}</div>`).join('');roster.scrollTop=top;
+ $('seat-current-table').textContent=tableLabel(t.id).toUpperCase();$('seat-current-title').textContent=`Seat ${seatNumber}`;
+ const curr=$('seat-current-guest');curr.classList.toggle('empty',!occupant);curr.innerHTML=occupant?`<b>${guestName(occupant)}</b><small>Assigned · ${escape([occupant.host,occupant.group].filter(Boolean).join(' · '))}</small>`:'<b>This seat is empty.</b><small>Choose a guest below, or drop a guest onto this chair.</small>';
+ $('seat-clear').hidden=!occupant;$('seat-edit-guest').hidden=!occupant;$('seat-add-new').hidden=!!occupant;$('seat-map-undo').disabled=!history.canUndo;$('seat-map-redo').disabled=!history.canRedo;renderSeatCandidates();
+}
+function renderSeatCandidates(){
+ const box=$('seat-candidates');if(!box||!seatTableId)return;
+ const q=$('seat-guest-search').value.trim().toLocaleLowerCase(),filter=$('seat-guest-filter').value,occupant=seatOccupant(seatTableId,seatNumber),top=box.scrollTop;
+ const list=state.guestList.filter(g=>g.id!==occupant?.id&&!g.reserve&&g.rsvp!=='Declined'&&!(filter==='unassigned'&&g.tableId)&&!(filter==='seated'&&!g.tableId)&&(!q||[g.name,g.host,g.group].join(' ').toLocaleLowerCase().includes(q))).sort(sourceOrder);
+ if(!list.some(g=>g.id===seatPickedId))seatPickedId=null;$('seat-candidate-count').textContent=`${list.length} available`;
+ box.innerHTML=list.map(g=>`<div class="seat-candidate ${g.id===seatPickedId?'chosen':''}"><button type="button" data-seat-candidate="${escape(g.id)}" aria-pressed="${g.id===seatPickedId}">${guestName(g)}<small>${escape([g.host,g.group,g.tableId?tableLabel(g.tableId)+' · Seat '+g.seatNumber:'Unassigned'].filter(Boolean).join(' · '))}</small></button>${dragHandle(g)}</div>`).join('')||'<p class="seat-candidate-empty">No eligible guests match. Change the filter or search. Reserve and declined guests are excluded; edit their status in the guestbook first.</p>';
+ box.scrollTop=top;renderSeatPreview();
+}
+function renderSeatPreview(){const g=state.guestList.find(g=>g.id===seatPickedId),occupant=seatOccupant(seatTableId,seatNumber),apply=$('seat-apply');apply.disabled=!g;
+ if(!g){apply.textContent=`Assign to Seat ${seatNumber}`;$('seat-assignment-preview').textContent='Choose a guest above, or drag one onto a numbered seat.';return;}
+ if(occupant&&g.tableId){apply.textContent='Swap these two seats';$('seat-assignment-preview').textContent=`${g.name} → Seat ${seatNumber}. ${occupant.name} → ${tableLabel(g.tableId)}, Seat ${g.seatNumber}.`;}
+ else if(occupant){apply.textContent='Replace occupant…';$('seat-assignment-preview').textContent=`${g.name} → Seat ${seatNumber}. ${occupant.name} will return to Unassigned, not be deleted. Confirmation required.`;}
+ else{apply.textContent=`Assign ${g.name} to Seat ${seatNumber}`;$('seat-assignment-preview').textContent=`${g.tableId?'Move from '+tableLabel(g.tableId)+', Seat '+g.seatNumber:'Assign from the guest list'} to ${tableLabel(seatTableId)}, Seat ${seatNumber}.`;}
+}
+function applySeatGuest(replace=false){
+ const g=state.guestList.find(g=>g.id===seatPickedId);if(!g)return;const tableId=seatTableId,number=seatNumber,occupant=seatOccupant(tableId,number);
+ if(occupant&&!g.tableId&&!replace){askConfirm('Replace the guest in this seat?',`${g.name} will take ${tableLabel(tableId)}, Seat ${number}. ${occupant.name} will be kept in the guest list as unassigned.`, 'Replace occupant',()=>applySeatGuest(true));return;}
+ try{
+  const next=replace?S.replace(state,g.id,tableId,number):G.dropGuests(state,[g.id],{tableId,seatNumber:number});const message=`${g.name} assigned to ${tableLabel(tableId)}, Seat ${number}.${occupant&&g.tableId&&!replace?' Seats swapped.':''}`;
+  state=next;seatPickedId=null;guestPicked.clear();if($('seat-auto-next').checked)seatNumber=S.nextEmpty(next,tableId,number)||number;setGuestError('seat-map-error','');commit(message);$('seat-map-status').textContent=message+' Undo is available.';
+ }catch(e){setGuestError('seat-map-error',e.message);}
+}
+function exportTableSeats(){const t=tables().find(t=>t.id===seatTableId);if(!t)return;
+ const html=`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escape(tableLabel(t.id))} · Seat map</title><style>body{font:14px/1.6 Arial,sans-serif;max-width:760px;margin:24px auto;padding:18px;color:#2e4735}h1{font:32px Georgia,serif;margin-bottom:7px}.diagram{max-width:530px;margin:auto}svg{width:100%;height:auto}table{border-collapse:collapse;width:100%}td,th{padding:8px 12px;text-align:left;border-bottom:1px solid #dce1d3}th{background:#eef3e6}.empty{color:#899278}.note{font-size:11px;color:#849176}button{padding:10px 16px;cursor:pointer}@media print{button{display:none}body{margin:0;padding:10px}}</style><body><button onclick="window.print()">Print / save as PDF</button><h1>${escape(tableLabel(t.id))} · Seat by seat</h1><p>${G.tableGuests(state,t.id).length} assigned / ${t.seats} seats</p><div class="diagram">${seatDiagramSVG(t,0)}</div><p class="note">Same orientation as the floor plan. Numbering follows the table’s rotation (${t.rotation}°); seat 1 starts at the right-hand end before rotation. Physical positions are planning estimates.</p><table><thead><tr><th>Seat</th><th>Guest / empty</th><th>Host / group</th></tr></thead><tbody>${S.slots(state,t.id).map(s=>`<tr class="${s.guest?'':'empty'}"><td>${s.number}</td><td>${s.guest?escape(s.guest.name):'Empty'}</td><td>${s.guest?escape([s.guest.host,s.guest.group].filter(Boolean).join(' / ')):'—'}</td></tr>`).join('')}</tbody></table><p class="note">Private guest information · Exported ${escape(new Date().toLocaleString())}</p></body></html>`;
+ download('table-'+t.label.replace(/[^\w\u0e00-\u0e7f-]/g,'_')+'-seat-map.html',html,'text/html;charset=utf-8');
+}
+// Capture seat navigation without opening the guest editor after a drag.
+document.addEventListener('click',e=>{const b=e.target.closest('[data-open-seat-table]');if(!b)return;if(e.detail>0&&Date.now()<suppressGuestClickUntil)return;e.preventDefault();e.stopImmediatePropagation();if(b.closest('#seat-map-dialog')&&b.hasAttribute('data-seat-select'))chooseSeat(Number(b.dataset.seatSelect));else openSeatMap(b.dataset.openSeatTable,Number(b.dataset.openSeatNumber)||null);},true);
+$('seat-map-diagram').addEventListener('click',e=>{const b=e.target.closest('[data-seat-select]');if(b)chooseSeat(Number(b.dataset.seatSelect));});
+$('seat-map-diagram').addEventListener('keydown',e=>{const b=e.target.closest('[data-seat-select]');if(b&&['Enter',' '].includes(e.key)){e.preventDefault();chooseSeat(Number(b.dataset.seatSelect));$('seat-map-diagram').querySelector(`[data-seat-select="${seatNumber}"]`)?.focus();}});
+// SVG groups do not synthesize clicks from Enter/Space like HTML buttons do.
+document.addEventListener('keydown',e=>{const label=e.target.closest('[data-plan-seat-label]');if(label&&['Enter',' '].includes(e.key)){e.preventDefault();e.stopPropagation();openSeatMap(label.dataset.openSeatTable,Number(label.dataset.openSeatNumber));}},true);
+$('seat-map-roster').addEventListener('click',e=>{const b=e.target.closest('[data-seat-select]');if(b)chooseSeat(Number(b.dataset.seatSelect));});
+$('seat-candidates').addEventListener('click',e=>{const b=e.target.closest('[data-seat-candidate]');if(b){seatPickedId=b.dataset.seatCandidate;setGuestError('seat-map-error','');renderSeatCandidates();}});
+$('seat-guest-search').oninput=()=>{seatPickedId=null;renderSeatCandidates();};$('seat-guest-filter').onchange=()=>{seatPickedId=null;renderSeatCandidates();};
+$('guest-names-toggle').onclick=$('seat-names-toggle').onclick=()=>setGuestNames(!options.guestNames);$('seat-map-table').onchange=()=>openSeatMap($('seat-map-table').value);
+$('seat-map-close').onclick=()=>$('seat-map-dialog').close();$('seat-map-dialog').addEventListener('close',hideSeatTip);
+$('seat-previous').onclick=()=>{const t=tables().find(t=>t.id===seatTableId);if(t)chooseSeat(seatNumber===1?t.seats:seatNumber-1);};$('seat-next').onclick=()=>{const t=tables().find(t=>t.id===seatTableId);if(t)chooseSeat(seatNumber===t.seats?1:seatNumber+1);};
+$('seat-apply').onclick=()=>applySeatGuest();$('seat-clear').onclick=()=>{const g=seatOccupant(seatTableId,seatNumber);if(!g)return;state=G.assign(state,[g.id],'');seatPickedId=null;commit(`${g.name} returned to Unassigned. The guest record is kept.`);$('seat-map-status').textContent=`Seat ${seatNumber} cleared. ${g.name} is unassigned; Undo can restore the seat.`;};
+$('seat-edit-guest').onclick=()=>{const g=seatOccupant(seatTableId,seatNumber);if(g)openGuestForm(g.id);};$('seat-add-new').onclick=()=>{if(seatOccupant(seatTableId,seatNumber))return;openGuestForm(null,seatTableId);formSeatOptions(seatNumber);};
+$('seat-map-undo').onclick=undo;$('seat-map-redo').onclick=redo;$('seat-map-export').onclick=exportTableSeats;
+$('table-guest-assign').onclick=$('table-guest-manage').onclick=()=>{const t=selectedObject();if(t?.kind==='table')openSeatMap(t.id);};
+window.studio={ready:true,seatAtPoint:planSeatAtPoint,get engineStatus(){return engineStatus;},get state(){return M.clone(state);},get guestStats(){return G.stats(state);},get warnings(){return M.clone(warnings);},get view(){return view;},get walkthrough(){if(!scene)return null;const w=scene.walk;return {x:w.x,z:w.z,yaw:w.yaw,pitch:w.pitch,vx:w.vx,vz:w.vz,speed:w.speed,held:w.inputs.size};}};
+switchPanel('layout',false);$('roof-mode').value=options.roof;$('wall-mode').value=options.walls;$('light-mode').value=options.light;for(const key of ['tables','chairs','zones','labels','guestNames','decor','garden','dimensions','grid','collisions'])$('show-'+key).checked=options[key];$('snap').checked=options.snap;syncGuestNameControls();warnings=M.conflicts(state);refresh();setView('plan',false);if(restored)$('save-status').textContent='Restored edits saved on this device.';
+// Same-origin host bridge: preview only. No writes to the live site or Sheets.
+const hostOrigin=window.__STUDIO_HOST_ORIGIN__;
+if(window.parent!==window&&typeof hostOrigin==='string'){
+ window.addEventListener('message',e=>{
+  if(e.source!==window.parent||e.origin!==hostOrigin||e.data?.type!=='tongter-studio:import-guests')return;
+  if(typeof e.data.text!=='string'||e.data.text.length>5000000)return;
+  // Do not interrupt a partially edited guest or an active seating gesture.
+  if(document.querySelector('dialog[open]')||guestDrag){toast('Close the current dialog before importing site guests.');return;}
+  guestImportPreview=null;guestImportCandidate=null;$('guest-import-filename').textContent='Current site guests (read-only import)';$('guest-import-mode').value='merge';$('guest-import-replace-confirm').checked=false;$('guest-import-apply').disabled=true;$('guest-import-summary').textContent='';$('guest-import-warnings').textContent='';setGuestError('guest-import-error','');
+  try{guestImportPreview=G.parseGuestFile(e.data.text,'tongter-site-guests.json',state);$('guest-import-warnings').textContent='Site tables are retained as original references, not mapped onto the 20-table draft. Merge keeps existing draft seat assignments for matching IDs. This does not update the live Google Sheet.';previewGuestImport();}catch(error){setGuestError('guest-import-error',error.message);}
+  $('guest-import-dialog').showModal();
+ });
+ window.parent.postMessage({type:'tongter-studio:ready'},hostOrigin);
+}
+setTimeout(loadEngine,50);
+})();

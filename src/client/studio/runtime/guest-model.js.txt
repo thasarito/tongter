@@ -1,0 +1,145 @@
+
+/* Guest / table model. Pure data operations; all changes validate before being committed. */
+(function(root){
+'use strict';
+const M=root.GH;
+if(!M)throw new Error('Load the venue layout model first.');
+const baseParse=M.parseLayout,baseDefault=M.defaultLayout;
+const copy=x=>JSON.parse(JSON.stringify(x));
+const SOURCE_TABLES={L4:'Table 1 · L4',VIP2:'Table 2 · VIP2',L3:'Table 3 · L3',L1:'Table 4 · L1',VIP1:'Table 5 · VIP1',ROUND4:'Table 6 · ROUND4',ROUND5:'Table 7 · ROUND5',ROUND1:'Table 8 · ROUND1',ROUND2:'Table 9 · ROUND2',ROUND3:'Table 10 · ROUND3',HOLD:'Needs seats · HOLD',EXTRA:'Reserve · EXTRA'};
+const FIELDS={name:100,host:40,group:120,status:80,rsvp:30,notes:2000,dietary:300,heart:20,star:20,sourceTableId:100,sourceTableLabel:120,unmappedTableId:100,unmappedTableLabel:120};
+const owns=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+const uid=()=> 'guest-'+(root.crypto?.randomUUID?.()||Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12));
+const numSeat=(v,label='Seat')=>{if(v===''||v===null||v===undefined)return null;const n=Number(v);if(!Number.isInteger(n)||n<1||n>1000)throw new Error(label+' must be a positive whole number.');return n;};
+function bool(v){if(typeof v==='boolean')return v;if(v===null||v===undefined||v==='')return false;const s=String(v).trim().toLowerCase();if(['true','1','yes','y'].includes(s))return true;if(['false','0','no','n'].includes(s))return false;throw new Error('Boolean fields must use true/false or yes/no.');}
+function clean(raw){
+ if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new Error('Invalid guest record.');
+ const g={id:String(raw.id||uid())};if(!/^[A-Za-z0-9_-]{1,100}$/.test(g.id))throw new Error('Invalid guest ID: '+g.id.slice(0,100));
+ for(const [k,max]of Object.entries(FIELDS)){if(raw[k]!==undefined&&raw[k]!==null&&typeof raw[k]!=='string')throw new Error(k+' must be text.');g[k]=String(raw[k]??'').trim();if(g[k].length>max)throw new Error(k+' must be at most '+max+' characters.');}
+ if(!g.name)throw new Error('Guest name is required.');
+ if(!g.rsvp)g.rsvp='Pending';if(!['Pending','Confirmed','Maybe','Declined'].includes(g.rsvp))throw new Error('RSVP must be Pending, Confirmed, Maybe or Declined.');
+ for(const k of ['reserve','important','vip'])g[k]=bool(raw[k]);
+ g.tableId=String(raw.tableId??'').trim();g.seatNumber=numSeat(raw.seatNumber);g.sourceSeatNumber=numSeat(raw.sourceSeatNumber,'Original seat');g.unmappedSeatNumber=numSeat(raw.unmappedSeatNumber,'Unmatched imported seat');
+ if(!g.tableId)g.seatNumber=null;
+ if(g.reserve&&g.tableId)throw new Error(g.name+' is on reserve. Turn off Reserve before assigning a seat.');
+ return g;
+}
+function fromLegacy(list){
+ if(!Array.isArray(list))throw new Error('No guest array in the source.');
+ return list.map(g=>clean({...g,important:g.important??!!g.heart,vip:g.vip??!!g.star,
+ sourceTableId:String(g.sourceTableId??g.tableId??g.table??''),sourceTableLabel:g.sourceTableLabel||SOURCE_TABLES[g.tableId]||String(g.tableId||g.table||''),sourceSeatNumber:g.sourceSeatNumber??g.seatNumber??g.seat,
+ reserve:g.reserve??(String(g.tableId||g.table).toUpperCase()==='EXTRA'),tableId:'',seatNumber:null}));
+}
+function normalizeState(input){
+ if(!input||![2,3].includes(input.version))throw new Error('Not a Glass House Studio v2/v3 layout.');
+ // The original geometry validator remains authoritative. Names on objects are a derived cache.
+ const s=baseParse(JSON.stringify({title:input.title,version:2,items:input.items?.map(o=>({...o,guests:[]}))}));
+ let list=input.guestList;
+ if(list===undefined){list=[];for(const o of input.items||[])if(o.kind==='table')for(const [i,name]of (o.guests||[]).entries())if(String(name).trim())list.push({id:'migrated-'+o.id+'-'+(i+1),name,tableId:o.id,seatNumber:i+1});}
+ if(!Array.isArray(list)||list.length>5000)throw new Error('The guest list supports up to 5,000 guests.');
+ s.version=3;s.guestList=list.map(clean);s.guestSource={};
+ if(input.guestSource&&typeof input.guestSource==='object')for(const k of ['archive','snapshot','note'])if(typeof input.guestSource[k]==='string')s.guestSource[k]=input.guestSource[k].slice(0,1000);
+ const ids=new Set(),tables=new Map(s.items.filter(o=>o.kind==='table').map(o=>[o.id,o])),used=new Map([...tables.keys()].map(id=>[id,new Set()]));
+ for(const g of s.guestList){
+  if(ids.has(g.id))throw new Error('Duplicate guest ID: '+g.id);ids.add(g.id);
+  if(!g.tableId)continue;
+  const t=tables.get(g.tableId);if(!t)throw new Error('Unknown venue table '+g.tableId+' for '+g.name+'.');
+  if(g.seatNumber!==null){if(g.seatNumber>t.seats)throw new Error(g.name+': seat '+g.seatNumber+' exceeds Table '+t.label+' capacity ('+t.seats+').');if(used.get(t.id).has(g.seatNumber))throw new Error('Table '+t.label+' seat '+g.seatNumber+' is occupied by more than one guest.');used.get(t.id).add(g.seatNumber);}
+ }
+ for(const g of s.guestList)if(g.tableId&&g.seatNumber===null){const t=tables.get(g.tableId),taken=used.get(t.id);let n=1;while(taken.has(n)&&n<=t.seats)n++;if(n>t.seats)throw new Error('Table '+t.label+' is full. Not enough free seats.');g.seatNumber=n;taken.add(n);}
+ for(const t of tables.values())t.guests=tableGuests(s,t.id).map(g=>g.name);
+ return s;
+}
+function tableGuests(s,id){return (s.guestList||[]).filter(g=>g.tableId===id).sort((a,b)=>(a.seatNumber||999)-(b.seatNumber||999)||a.name.localeCompare(b.name));}
+function stats(s){const g=s.guestList||[],names=new Map();for(const p of g){const n=p.host+'|'+p.name.toLocaleLowerCase();names.set(n,(names.get(n)||0)+1);}return {total:g.length,assigned:g.filter(p=>p.tableId).length,unassigned:g.filter(p=>!p.tableId).length,needs:g.filter(p=>!p.tableId&&!p.reserve&&p.rsvp!=='Declined').length,reserve:g.filter(p=>p.reserve).length,declined:g.filter(p=>p.rsvp==='Declined').length,confirmed:g.filter(p=>p.rsvp==='Confirmed').length,seats:s.items.filter(o=>o.kind==='table').reduce((n,t)=>n+t.seats,0),duplicateNames:[...names.values()].filter(n=>n>1).length};}
+function upsertGuest(s,patch){const n=copy(s),i=n.guestList.findIndex(g=>g.id===patch.id);let p={...(i>=0?n.guestList[i]:{}),...patch};if(owns(patch,'tableId')&&i>=0&&patch.tableId!==n.guestList[i].tableId&&!owns(patch,'seatNumber'))p.seatNumber=null;p=clean(p);if(i>=0)n.guestList[i]=p;else n.guestList.push(p);return normalizeState(n);}
+function removeGuest(s,id){const n=copy(s);n.guestList=n.guestList.filter(g=>g.id!==id);return normalizeState(n);}
+function checkIds(s,ids){const a=new Set(ids);if(!a.size)throw new Error('Select at least one guest.');if(a.size!==ids.length||[...a].some(id=>!s.guestList.some(g=>g.id===id)))throw new Error('Some selected guests no longer exist.');return a;}
+function assign(s,ids,tableId){const set=checkIds(s,ids);const n=copy(s);if(tableId&&!n.items.some(t=>t.kind==='table'&&t.id===tableId))throw new Error('Choose a venue table.');for(const g of n.guestList)if(set.has(g.id)&&g.tableId!==(tableId||'')){g.tableId=tableId||'';g.seatNumber=null;}return normalizeState(n);}
+// One transaction for pointer/keyboard drops. No guest or source reference is removed.
+function dropGuests(s,ids,{tableId='',seatNumber=null}={}){
+ checkIds(s,ids);
+ if(seatNumber===null||seatNumber==='')return assign(s,ids,tableId);
+ if(ids.length!==1)throw new Error('Drop one guest at a time onto a specific seat; drop a group onto the table header.');
+ const seat=numSeat(seatNumber),table=s.items.find(t=>t.kind==='table'&&t.id===tableId);
+ if(!table)throw new Error('Choose a venue table.');
+ if(seat>table.seats)throw new Error('That seat is outside this table’s capacity.');
+ const n=copy(s),g=n.guestList.find(g=>g.id===ids[0]);
+ if(g.reserve)throw new Error('This guest is on reserve. Turn off Reserve before assigning a seat.');
+ const occupant=n.guestList.find(p=>p.tableId===tableId&&p.seatNumber===seat&&p.id!==g.id);
+ if(occupant){
+   if(!g.tableId)throw new Error('That seat is occupied. Choose an empty seat or drop on the table header for the next free seat.');
+   occupant.tableId=g.tableId;occupant.seatNumber=g.seatNumber;
+ }
+ g.tableId=tableId;g.seatNumber=seat;
+ return normalizeState(n);
+}
+function distribute(s,ids,tableIds){
+ const set=checkIds(s,ids);if(!tableIds.length)throw new Error('Select destination tables.');if(new Set(tableIds).size!==tableIds.length)throw new Error('Select each table only once.');
+ const n=copy(s),pool=new Map(n.guestList.map(g=>[g.id,g]));for(const id of ids){const g=pool.get(id);if(g.reserve)throw new Error('Reserve guests must be activated before assignment.');g.tableId='';g.seatNumber=null;}
+ const places=[];for(const id of tableIds){const t=n.items.find(o=>o.kind==='table'&&o.id===id);if(!t)throw new Error('Unknown destination table.');const occupied=new Set(tableGuests(n,id).map(g=>g.seatNumber));for(let k=1;k<=t.seats;k++)if(!occupied.has(k))places.push({id,seat:k});}
+ if(places.length<ids.length)throw new Error('Not enough free seats: '+places.length+' available for '+ids.length+' guests. Select more tables.');
+ ids.forEach((id,i)=>{Object.assign(pool.get(id),{tableId:places[i].id,seatNumber:places[i].seat});});return normalizeState(n);
+}
+function removeTable(s,id){const n=copy(s);n.items=n.items.filter(t=>t.id!==id);for(const g of n.guestList)if(g.tableId===id){g.tableId='';g.seatNumber=null;}return normalizeState(n);}
+function csvParse(text){
+ text=text.replace(/^\uFEFF/,'');const rows=[];let row=[],v='',quoted=false,closed=false;
+ for(let i=0;i<text.length;i++){const c=text[i];if(quoted){if(c==='"'){if(text[i+1]==='"'){v+='"';i++;}else{quoted=false;closed=true;}}else v+=c;continue;}
+ if(closed&&!['\r','\n',','].includes(c))throw new Error('Invalid CSV: characters after a closing quote.');
+ if(c==='"'){if(v||closed)throw new Error('Invalid CSV quote.');quoted=true;}else if(c===','){row.push(v);v='';closed=false;}else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(v);if(row.some(x=>x!==''))rows.push(row);row=[];v='';closed=false;}else v+=c;
+ }if(quoted)throw new Error('Invalid CSV: unclosed quote.');if(v||row.length||closed){row.push(v);if(row.some(x=>x!==''))rows.push(row);}return rows;
+}
+const columns=['id','name','host','group','status','rsvp','table_id','table','seat','reserve','important','vip','heart','star','notes','dietary','source_table_id','source_table','source_seat','unmapped_table_id','unmapped_table','unmapped_seat','csv_escaped'];
+const alias={id:'id',guestid:'id',name:'name',guest:'name',guestname:'name','ชื่อ':'name',host:'host',side:'host',group:'group',status:'status',rsvp:'rsvp',tableid:'tableId',table:'tableLabel',tablelabel:'tableLabel',tablenumber:'tableLabel','โต๊ะ':'tableLabel',seat:'seatNumber',seatnumber:'seatNumber',reserve:'reserve',important:'important',vip:'vip',heart:'heart',star:'star',notes:'notes',note:'notes',dietary:'dietary',sourcetableid:'sourceTableId',sourcetable:'sourceTableLabel',sourcetablelabel:'sourceTableLabel',sourceseat:'sourceSeatNumber',sourceseatnumber:'sourceSeatNumber',unmappedtableid:'unmappedTableId',unmappedtable:'unmappedTableLabel',unmappedtablelabel:'unmappedTableLabel',unmappedseat:'unmappedSeatNumber',unmappedseatnumber:'unmappedSeatNumber',csvescaped:'csvEscaped'};
+const key=s=>String(s).trim().toLowerCase().replace(/[ _-]/g,'');
+function resolveTable(ref,s){if(!ref)return '';const text=String(ref).trim();const exact=s.items.find(t=>t.kind==='table'&&t.id===text);if(exact)return exact.id;const label=text.replace(/^table\s*/i,'');const matches=s.items.filter(t=>t.kind==='table'&&t.label.toLowerCase()===label.toLowerCase());return matches.length===1?matches[0].id:null;}
+function parseGuestFile(text,filename,s){
+ if(typeof text!=='string'||text.length>5000000)throw new Error('Guest files must be smaller than 5 MB.');
+ if(text.includes('\uFFFD'))throw new Error('Invalid text encoding. Export CSV as UTF-8 to preserve guest names.');
+ let rows,legacy=false,isCSV=false;const warnings=[];text=text.replace(/^\uFEFF/,'');
+ if(/\.json$/i.test(filename)||text.trim().startsWith('{')||text.trim().startsWith('[')){
+  let p;try{p=JSON.parse(text);}catch{throw new Error('Invalid guest JSON.');}
+  rows=Array.isArray(p)?p:p.guestList||p.guests;if(!Array.isArray(rows))throw new Error('No guest array found. Use a guest-table JSON or CSV file.');
+  legacy=!p.format&&!p.guestList&&rows.some(g=>/^(L[1-5]|VIP[12]|ROUND[1-5]|EXTRA|HOLD|V[1-5])$/i.test(g?.tableId||''));
+  if(p.format&&p.format!=='glass-house-guest-tables'&&p.format!=='tong-ter-extracted-guests')throw new Error('Unsupported guest file format.');
+  if(p.format&&p.version!==1)throw new Error('Unsupported guest file version.');
+  if(p.format==='tong-ter-extracted-guests')legacy=true;
+  if(legacy){rows=fromLegacy(rows);warnings.push('Legacy tables are not the venue tables. Original tables and seats are retained; all venue assignments start unassigned.');}
+ }else{
+  isCSV=true;const csv=csvParse(text);if(!csv.length)throw new Error('CSV is empty.');const heads=csv.shift().map(h=>alias[key(h)]||'');if(!heads.includes('name'))throw new Error('CSV needs a name column.');const used=heads.filter(Boolean);if(new Set(used).size!==used.length)throw new Error('CSV contains duplicate column names.');
+  rows=csv.map((r,i)=>{if(r.length!==heads.length)throw new Error('CSV row '+(i+2)+' has '+r.length+' fields; expected '+heads.length+'.');const o={};heads.forEach((h,j)=>{if(h)o[h]=r[j];});if(o.csvEscaped==='apostrophe-v1')for(const k of Object.keys(o))if(/^'[=+\-@\t\r']/.test(o[k]))o[k]=o[k].slice(1);return o;});
+ }
+ if(rows.length>5000)throw new Error('The guest list supports up to 5,000 guests.');if(!rows.length)throw new Error('The file contains no guests.');
+ const ids=new Set(),normalized=[];let unknown=0;
+ for(let i=0;i<rows.length;i++){
+  const r=rows[i];if(!r||typeof r!=='object'||Array.isArray(r))throw new Error('Invalid guest at row '+(i+1));
+  const g={id:String(r.id||uid())};for(const f of Object.keys(FIELDS))if(owns(r,f))g[f]=r[f];
+  if(typeof g.name!=='string'||!g.name.trim())throw new Error('Guest name is required at row '+(i+1)+'.');
+  if(ids.has(g.id))throw new Error('Duplicate guest ID in import: '+g.id);ids.add(g.id);
+  for(const k of ['important','vip','reserve'])if(owns(r,k))g[k]=bool(r[k]);
+  if(owns(r,'sourceSeatNumber'))g.sourceSeatNumber=numSeat(r.sourceSeatNumber,'Original seat');if(owns(r,'unmappedSeatNumber'))g.unmappedSeatNumber=numSeat(r.unmappedSeatNumber,'Unmatched imported seat');
+  const hasTable=owns(r,'tableId')||owns(r,'tableLabel')||owns(r,'table_id')||owns(r,'table');
+  const rawRef=isCSV&&owns(r,'tableLabel')?r.tableLabel:(r.tableId??r.table_id??r.tableLabel??r.table??''),rawSeat=r.seatNumber??r.seat;
+  if(hasTable){let resolved=resolveTable(rawRef,s);if(resolved===null&&r.tableLabel&&/^table-|^$/.test(String(rawRef)))resolved=resolveTable(r.tableLabel,s);
+   if(resolved===null){g.tableId='';g.seatNumber=null;g.unmappedTableId=String(rawRef);g.unmappedTableLabel=String(r.tableLabel||rawRef);g.unmappedSeatNumber=numSeat(rawSeat,'Unmatched imported seat');if(!g.sourceTableId)g.sourceTableId=String(rawRef);if(!g.sourceTableLabel)g.sourceTableLabel=String(r.tableLabel||rawRef);if(g.sourceSeatNumber==null)g.sourceSeatNumber=numSeat(rawSeat,'Original seat');unknown++;}
+   else{g.tableId=resolved;g.seatNumber=resolved?numSeat(rawSeat):null;}
+  }else if(owns(r,'seatNumber')||owns(r,'seat'))g.seatNumber=numSeat(rawSeat);
+  // Validate partial text/flags now, without losing missing-column semantics for merge.
+  clean({...g,tableId:'',seatNumber:null});normalized.push(g);
+ }
+ if(unknown)warnings.push(unknown+' guest(s) reference a table that does not exist here. Those references are saved as original tables; venue assignments will be unassigned.');
+ return {rows:normalized,warnings,filename:String(filename),legacy};
+}
+function applyImport(s,preview,mode='merge'){
+ if(!['merge','replace'].includes(mode))throw new Error('Choose merge or replace.');const n=copy(s);if(mode==='replace')n.guestList=[];const map=new Map(n.guestList.map(g=>[g.id,g]));
+ for(const row of preview.rows){const prior=map.get(row.id);const g={...prior,...row};if(owns(row,'tableId')&&row.tableId!==prior?.tableId&&!owns(row,'seatNumber'))g.seatNumber=null;map.set(row.id,g);}n.guestList=[...map.values()];return normalizeState(n);
+}
+function exportGuestJSON(s){return JSON.stringify({format:'glass-house-guest-tables',version:1,exportedAt:new Date().toISOString(),tables:s.items.filter(t=>t.kind==='table').map(t=>({id:t.id,label:t.label,seats:t.seats})),guests:s.guestList.map(g=>({...g,tableLabel:s.items.find(t=>t.id===g.tableId)?.label||''}))},null,2);}
+function exportCSV(s){
+ const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const safe=v=>{v=String(v??'');return /^[=+\-@\t\r']/.test(v)?"'"+v:v;};
+ const lines=[columns.map(q).join(',')];for(const g of s.guestList){const row={...g,table_id:g.tableId,table:s.items.find(t=>t.id===g.tableId)?.label||'',seat:g.seatNumber,source_table_id:g.sourceTableId,source_table:g.sourceTableLabel,source_seat:g.sourceSeatNumber,unmapped_table_id:g.unmappedTableId,unmapped_table:g.unmappedTableLabel,unmapped_seat:g.unmappedSeatNumber,csv_escaped:'apostrophe-v1'};lines.push(columns.map(k=>q(safe(row[k]))).join(','));}return '\uFEFF'+lines.join('\r\n')+'\r\n';
+}
+function integrate(){M.parseLayout=text=>{if(typeof text!=='string'||text.length>5000000)throw new Error('Layout must be a JSON file smaller than 5 MB.');let s;try{s=JSON.parse(text);}catch{throw new Error('This is not valid JSON.');}return normalizeState(s);};M.defaultLayout=()=>normalizeState({...baseDefault(),guestList:[],version:3});}
+const api={SOURCE_TABLES,uid,clean,fromLegacy,normalizeState,tableGuests,stats,upsertGuest,removeGuest,assign,dropGuests,distribute,removeTable,parseGuestFile,applyImport,exportCSV,exportGuestJSON,integrate};root.GuestModel=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+})(typeof window!=='undefined'?window:globalThis);
+

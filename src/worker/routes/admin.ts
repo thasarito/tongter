@@ -5,6 +5,7 @@ import {
 } from "@/shared/event-config";
 import { isLang, type Lang } from "@/shared/i18n";
 import { buildAdminView, buildQrSheetView } from "@/shared/views";
+import { buildStudioGuestImport } from "@/shared/studio-guests";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
@@ -50,6 +51,7 @@ export function adminRoutes(deps: AppDependencies) {
       return c.body(null, 204);
     })
     .use("*", async (c, next) => {
+      c.header("Cache-Control", "no-store");
       const token = getCookie(c, ADMIN_COOKIE);
       if (
         !token ||
@@ -81,6 +83,10 @@ export function adminRoutes(deps: AppDependencies) {
         }),
         200,
       );
+    })
+    .get("/studio/guests", async (c) => {
+      const snapshot = await deps.repositoryFor(c.env).getSnapshot();
+      return c.json(buildStudioGuestImport(snapshot), 200);
     })
     .get("/qr", async (c) => {
       const snapshot = await deps.repositoryFor(c.env).getSnapshot();

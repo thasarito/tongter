@@ -1,0 +1,74 @@
+
+/* Persistent seat-name labels. Layout only; never mutates the guest roster. */
+(function(root){
+'use strict';
+const S=root.SeatMap;
+const segmenter=typeof Intl.Segmenter==='function'?new Intl.Segmenter(undefined,{granularity:'grapheme'}):null;
+function wrap(text,maxWidth,measure){
+ const chars=segmenter?Array.from(segmenter.segment(String(text).trim()),p=>p.segment):Array.from(String(text).trim());
+ const lines=[];let line='';
+ for(const c of chars){
+  if(line&&measure(line+c)>maxWidth){
+   const last=line.lastIndexOf(' ');
+   // Prefer a word boundary, but split long Thai / unspaced names by whole graphemes.
+   if(last>line.length*.35){lines.push(line.slice(0,last).trimEnd());line=line.slice(last+1)+c;}
+   else{lines.push(line.trimEnd());line=c.trimStart();}
+  }else line+=c;
+ }
+ if(line.trim())lines.push(line.trimEnd());return lines.length?lines:[''];
+}
+function entries(state,tableId){
+ const t=state.items.find(t=>t.kind==='table'&&t.id===tableId);if(!t)return [];
+ return S.slots(state,tableId).filter(s=>s.guest).map(s=>({tableId,number:s.number,guestId:s.guest.id,name:s.guest.name,anchorX:s.worldX-t.x,anchorY:s.worldZ-t.z,tableX:t.x,tableY:t.z}));
+}
+function intersects(a,b,gap=0){return a.x<b.x+b.w+gap&&a.x+a.w+gap>b.x&&a.y<b.y+b.h+gap&&a.y+a.h+gap>b.y;}
+function basePlanLabels(state,tableId,measure){
+ return entries(state,tableId).map(s=>{
+  const lines=wrap(`${s.number} · ${s.name}`,1.38,measure),w=Math.max(.48,...lines.map(measure))+.18,h=lines.length*.24+.14;
+  const ax=s.anchorX,ay=s.anchorY;
+  const direction=Math.abs(ax)>Math.abs(ay)?[Math.sign(ax)||1,0]:[0,Math.sign(ay)||1];
+  let cx=ax,cy=ay;
+  if(direction[0])cx+=direction[0]*(w/2+.34);else cy+=direction[1]*(h/2+.34);
+  const worldX=s.tableX+cx-w/2,worldY=s.tableY+cy-h/2;
+  return {...s,lines,w,h,x:worldX,y:worldY,direction};
+ });
+}
+function distribute(labels,gap=.055){
+ const placed=[];
+ const ordered=[...labels].sort((a,b)=>Math.hypot(a.anchorX,a.anchorY)-Math.hypot(b.anchorX,b.anchorY)||String(a.tableId).localeCompare(String(b.tableId))||a.number-b.number);
+ for(const a of ordered){
+  let attempts=0;
+  while(placed.some(b=>intersects(a,b,gap))&&attempts++<320){
+   const lateral=((a.number%2)?1:-1)*.018*Math.min(3,attempts/10);
+   a.x+=a.direction[0]*.1+(a.direction[1]?lateral:0);
+   a.y+=a.direction[1]*.1+(a.direction[0]?lateral:0);
+  }
+  placed.push(a);
+ }
+ return ordered;
+}
+function plan(state,tableId,measure){
+ return distribute(basePlanLabels(state,tableId,measure)).map(l=>({...l,x:l.x-l.tableX,y:l.y-l.tableY,anchorX:l.anchorX,anchorY:l.anchorY}));
+}
+function planAll(state,measure){
+ const labels=distribute(state.items.filter(t=>t.kind==='table').flatMap(t=>basePlanLabels(state,t.id,measure)));
+ const grouped={};
+ for(const l of labels){
+  (grouped[l.tableId]||(grouped[l.tableId]=[])).push({...l,x:l.x-l.tableX,y:l.y-l.tableY,anchorX:l.anchorX,anchorY:l.anchorY});
+ }
+ return grouped;
+}
+function diagram(state,tableId,measure){
+ const t=state.items.find(t=>t.kind==='table'&&t.id===tableId);if(!t)return {width:490,height:280,centerX:245,centerY:145,scale:60,labels:[]};
+ const slots=S.slots(state,tableId),dx=slots.map(s=>s.worldX-t.x),dy=slots.map(s=>s.worldZ-t.z);
+ const scale=Math.min(81/(Math.max(...dx.map(Math.abs))+.28),86/(Math.max(...dy.map(Math.abs))+.28));
+ const labels=entries(state,tableId).map(s=>{const lines=wrap(`${s.number} · ${s.name}`,112,measure);return {...s,lines,w:130,h:Math.max(30,lines.length*15+14),side:s.anchorX<0?-1:1};});
+ const groups=[labels.filter(s=>s.side<0),labels.filter(s=>s.side>0)];
+ const stackHeight=g=>g.reduce((n,l)=>n+l.h,0)+Math.max(0,g.length-1)*7;
+ const height=Math.max(280,...groups.map(g=>stackHeight(g)+58)),centerY=height/2+6;
+ for(const group of groups){group.sort((a,b)=>a.anchorY-b.anchorY);let y=(height-stackHeight(group))/2+6;for(const l of group){l.x=l.side<0?8:352;l.y=y;l.anchorX=245+l.anchorX*scale;l.anchorY=centerY+l.anchorY*scale;y+=l.h+7;}}
+ return {width:490,height,centerX:245,centerY,scale,labels};
+}
+root.GuestLabels={wrap,entries,plan,planAll,diagram};
+})(typeof window!=='undefined'?window:globalThis);
+

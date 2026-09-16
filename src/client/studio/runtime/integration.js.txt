@@ -1,0 +1,9 @@
+// Host labels are source data, not inferred bride/groom identities.
+const renderGuestUIBase=renderGuestUI;
+renderGuestUI=function(){
+ renderGuestUIBase();
+ const hosts=new Map();for(const g of state.guestList){const host=g.host||'Unspecified host';hosts.set(host,(hosts.get(host)||0)+1);}
+ $('guest-bottom-summary').textContent=[...hosts].map(([host,count])=>count+' '+host).join(' · ')||'No guests loaded';
+ const sourced=state.guestList.filter(g=>g.sourceTableId).length;
+ $('guest-notice').textContent=sourced?sourced+' guests retain original table references. Source tables are not automatically mapped onto this draft. Use Original table filters and Split across tables to place a group.':'Import your saved layout or guest file to start. This repository does not contain a private guest roster.';
+};

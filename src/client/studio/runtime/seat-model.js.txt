@@ -1,0 +1,29 @@
+
+/* Single source of truth for chair positions and their guest assignments.
+   Existing seat IDs stay unchanged: seat 1 at the unrotated right end, then clockwise. */
+(function(root){
+'use strict';
+const M=root.GH,G=root.GuestModel;
+function position(table,number){
+ if(!table||table.kind!=='table'||!Number.isInteger(number)||number<1||number>table.seats)throw new Error('Choose a numbered seat within the table capacity.');
+ const a=(number-1)/table.seats*Math.PI*2,c=Math.cos(a),s=Math.sin(a),rx=table.w/2+.31,rz=table.d/2+.31;
+ let x=c*rx,z=s*rz;
+ if(table.shape==='rect'){const r=1/Math.max(Math.abs(c)/rx,Math.abs(s)/rz);x=c*r;z=s*r;}
+ const rotation=M.radians(table.rotation||0),cr=Math.cos(rotation),sr=Math.sin(rotation);
+ return {number,x,z,angle:a,rotation:a*180/Math.PI-90,worldX:table.x+x*cr-z*sr,worldZ:table.z+x*sr+z*cr};
+}
+function slots(state,tableId){
+ const table=state.items.find(t=>t.kind==='table'&&t.id===tableId);if(!table)return [];
+ const bySeat=new Map(G.tableGuests(state,tableId).map(g=>[g.seatNumber,g]));
+ return Array.from({length:table.seats},(_,i)=>({...position(table,i+1),guest:bySeat.get(i+1)||null}));
+}
+function nextEmpty(state,tableId,after=0){const list=slots(state,tableId);if(!list.length)return null;for(let i=0;i<list.length;i++){const slot=list[(after+i)%list.length];if(!slot.guest)return slot.number;}return null;}
+function replace(state,guestId,tableId,number){
+ const n=M.clone(state),table=n.items.find(t=>t.kind==='table'&&t.id===tableId);position(table,number);
+ const occupant=n.guestList.find(g=>g.tableId===tableId&&g.seatNumber===number&&g.id!==guestId);
+ if(occupant){occupant.tableId='';occupant.seatNumber=null;}
+ return G.dropGuests(n,[guestId],{tableId,seatNumber:number});
+}
+root.SeatMap={position,slots,nextEmpty,replace};
+})(typeof window!=='undefined'?window:globalThis);
+

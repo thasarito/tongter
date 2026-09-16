@@ -1,0 +1,124 @@
+// Pointer-based guest movement. This fragment shares the application IIFE.
+let guestDrag=null,suppressGuestClickUntil=0;
+function dragHandle(g){return `<button type="button" class="guest-grip" data-drag-guest="${escape(g.id)}" aria-label="Move ${escape(g.name)}" title="Drag to a seat; tap to edit">⠿</button>`;}
+function guestChip(g,{check=false,seat=null}={}){return `<div class="guest-chip ${guestPicked.has(g.id)?'picked':''}" ${seat?`data-guest-drop-table="${escape(g.tableId)}" data-guest-drop-seat="${g.seatNumber}"`:''}>${dragHandle(g)}${check?`<input type="checkbox" data-dock-pick="${escape(g.id)}" aria-label="Select ${escape(g.name)}" ${guestPicked.has(g.id)?'checked':''}>`:''}<button class="guest-chip-name" ${seat?`data-open-seat-table="${escape(g.tableId)}" data-open-seat-number="${g.seatNumber}"`:`data-edit-guest="${escape(g.id)}"`}>${seat?`<span class="seat-index">${g.seatNumber}.</span> `:''}${guestName(g)}<small>${escape([g.host,g.group].filter(Boolean).join(' · '))}${g.tableId?' · '+escape(tableLabel(g.tableId))+' / '+g.seatNumber:g.reserve?' · Reserve':''}</small></button></div>`;}
+function renderGuestDock(){
+ const list=$('guest-dock-list');if(!list)return;const top=list.scrollTop;
+ fillSelect('guest-dock-filter','<option value="needs">Need seats</option><option value="all">All guests</option><option value="assigned">Seated guests</option>'+tables().map(t=>`<option value="${escape(t.id)}">Table ${escape(t.label)}</option>`).join(''));
+ const sources=[...new Set(state.guestList.map(g=>g.sourceTableId).filter(Boolean))].sort();
+ fillSelect('guest-dock-source','<option value="">All original groups</option>'+sources.map(id=>`<option value="${escape(id)}">${escape(state.guestList.find(g=>g.sourceTableId===id)?.sourceTableLabel||id)}</option>`).join(''));
+ const q=$('guest-dock-search').value.trim().toLocaleLowerCase(),filter=$('guest-dock-filter').value,source=$('guest-dock-source').value;
+ const guests=state.guestList.filter(g=>{
+  if(filter==='needs'&&(g.tableId||g.reserve||g.rsvp==='Declined')||filter==='assigned'&&!g.tableId)return false;
+  if(!['needs','all','assigned'].includes(filter)&&g.tableId!==filter)return false;
+  if(source&&g.sourceTableId!==source)return false;
+  return !q||[g.name,g.host,g.group,g.sourceTableLabel,tableLabel(g.tableId)].join(' ').toLocaleLowerCase().includes(q);
+ }).sort(sourceOrder);
+ list.innerHTML=guests.map(g=>guestChip(g,{check:true})).join('')||'<p class="fine">No guests match these filters.</p>';list.scrollTop=top;
+ $('guest-dock-count').textContent=`${guests.length} shown · ${guestPicked.size} selected`;
+ $('guest-dock-clear').disabled=!guestPicked.size;$('guest-dock-undo').disabled=!history.canUndo;$('guest-dock-redo').disabled=!history.canRedo;
+ $('guest-dock-unassigned-count').textContent=state.guestList.filter(g=>!g.tableId).length;
+ const match=guests.filter(g=>guestPicked.has(g.id)).length;$('guest-dock-select-all').checked=guests.length>0&&match===guests.length;$('guest-dock-select-all').indeterminate=match>0&&match<guests.length;
+}
+function renderGuestDropTargets(){
+ $('guest-drag-targets').innerHTML='<span class="target-strip-title">DROP ONTO</span><button data-guest-drop-table="" class="drop-pill">Unassigned</button>'+tables().map(t=>`<button class="drop-pill" data-guest-drop-table="${escape(t.id)}" title="Drop onto Table ${escape(t.label)}">${escape(t.label)}<small>${G.tableGuests(state,t.id).length}/${t.seats}</small></button>`).join('');
+}
+function renderBoardPool(){
+ const el=$('guest-board-pool-list');if(!el)return;const top=el.scrollTop,q=$('guest-board-search').value.trim().toLocaleLowerCase();
+ const list=state.guestList.filter(g=>!g.tableId&&(!q||[g.name,g.host,g.group].join(' ').toLocaleLowerCase().includes(q))).sort(sourceOrder);
+ el.innerHTML=list.map(g=>guestChip(g)).join('')||'<p class="fine">No unassigned guests match.</p>';el.scrollTop=top;$('board-unassigned-count').textContent=list.length;
+}
+function seatOnPlan(){if($('guest-dialog').open)$('guest-dialog').close();setView('plan');switchPanel('guests');renderGuestDock();}
+function guestDropAt(x,y){
+ const el=document.elementFromPoint(x,y);if(!el)return null;
+ // A displaced name badge targets its own seat, not a nearby chair below it.
+ if(view==='plan'&&el.closest('#planStage')&&!el.closest('[data-plan-seat-label]')){const seat=planSeatAtPoint(x,y);if(seat)return {...seat,el:document.querySelector(`[data-plan-seat][data-seat-table="${seat.tableId}"][data-seat-number="${seat.seatNumber}"]`)};}
+ const target=el.closest('[data-guest-drop-table]');
+ if(target)return {tableId:target.dataset.guestDropTable,seatNumber:target.dataset.guestDropSeat?Number(target.dataset.guestDropSeat):null,el:target};
+ if(view==='plan'&&el.closest('#planStage')){
+   const hit=el.closest('[data-plan-id]'),id=hit?.dataset.planId;
+   if(id&&state.items.some(t=>t.kind==='table'&&t.id===id))return {tableId:id,seatNumber:null,el:hit};
+   const svg=$('plan-svg'),r=svg?.getBoundingClientRect();if(!r||x<r.left||x>r.right||y<r.top||y>r.bottom)return null;
+   const p=planAt({clientX:x,clientY:y},svg),scale=svg.getScreenCTM()?.a||1,tolerance=(guestDrag?.pointerType==='touch'?14:4)/scale;
+   let best=null,dist=Infinity;
+   for(const t of tables()){const shape=M.itemPolygon({...t,w:t.w+2*tolerance,d:t.d+2*tolerance},false),d=Math.hypot(p.x-t.x,p.y-t.z);if(options.tables&&M.pointInside(p.x,p.y,shape)&&d<dist){dist=d;best=t;}}
+   if(best)return {tableId:best.id,seatNumber:null,el:$('plan-object-'+best.id)};
+ }
+ if(view==='model'&&el.closest('#threeStage')&&scene){const seat=scene.seatAt({clientX:x,clientY:y});if(seat)return {...seat,el:$('threeStage')};const id=scene.tableAt({clientX:x,clientY:y});if(id)return {tableId:id,seatNumber:null,el:$('threeStage')};}
+ return null;
+}
+function evaluateGuestDrop(target){
+ if(!target)return {valid:false,message:'Drop onto a table, a seat, or Unassigned.'};
+ const {tableId,seatNumber}=target,key=tableId+'|'+(seatNumber||'');if(guestDrag.cache.has(key))return guestDrag.cache.get(key);
+ let result;try{
+   G.dropGuests(state,guestDrag.ids,{tableId,seatNumber});
+   const occupant=seatNumber?state.guestList.find(g=>g.tableId===tableId&&g.seatNumber===seatNumber&&!guestDrag.ids.includes(g.id)):null,count=guestDrag.ids.length;
+   result={valid:true,message:occupant?`Swap seats with ${occupant.name}`:!tableId?`Unassign ${count===1?'guest':count+' guests'} · keep records`:seatNumber?`${tableLabel(tableId)} · Seat ${seatNumber}`:`${tableLabel(tableId)} · ${count===1?'next free seat':count+' guests'}`};
+ }catch(e){result={valid:false,message:e.message};}guestDrag.cache.set(key,result);return result;
+}
+function clearGuestHover(){document.querySelectorAll('.guest-drop-hover,.guest-drop-blocked').forEach(e=>e.classList.remove('guest-drop-hover','guest-drop-blocked'));scene?.highlightGuestTarget(null);}
+function trackGuestDrop(){
+ if(!guestDrag?.active)return;
+ const d=guestDrag,target=guestDropAt(d.x,d.y),preview=evaluateGuestDrop(target),key=target?.tableId+'|'+(target?.seatNumber||'');
+ if(d.target?.el!==target?.el||d.key!==key){clearGuestHover();if(target){target.el?.classList.add(preview.valid?'guest-drop-hover':'guest-drop-blocked');if(view==='model'&&target.el===$('threeStage'))scene?.highlightGuestTarget(target.tableId,preview.valid,target.seatNumber);}d.key=key;}
+ d.target=target;d.preview=preview;d.ghost.classList.toggle('blocked',!!target&&!preview.valid);d.ghost.querySelector('small').textContent=preview.message;$('guest-drag-status').textContent=preview.message;
+ const gw=d.ghost.offsetWidth||230,gh=d.ghost.offsetHeight||64;d.ghost.style.left=Math.max(8,Math.min(innerWidth-gw-8,d.x+16))+'px';d.ghost.style.top=Math.max(8,Math.min(innerHeight-gh-8,d.y-(d.pointerType==='touch'?gh+24:-18)))+'px';
+}
+function guestAutoScroll(){
+ if(!guestDrag?.active)return;const d=guestDrag;let el=document.elementFromPoint(d.x,d.y),changed=false;
+ while(el&&el!==document.body){const style=getComputedStyle(el),r=el.getBoundingClientRect();
+   if(/auto|scroll/.test(style.overflowY)&&el.scrollHeight>el.clientHeight+4){const before=el.scrollTop,edge=35;if(d.y<r.top+edge)el.scrollTop-=Math.min(12,(r.top+edge-d.y)*.4);else if(d.y>r.bottom-edge)el.scrollTop+=Math.min(12,(d.y-r.bottom+edge)*.4);if(before!==el.scrollTop){changed=true;break;}}
+   if(/auto|scroll/.test(style.overflowX)&&el.scrollWidth>el.clientWidth+4){const before=el.scrollLeft;if(d.x<r.left+28)el.scrollLeft-=10;else if(d.x>r.right-28)el.scrollLeft+=10;if(before!==el.scrollLeft){changed=true;break;}}
+   el=el.parentElement;
+ }if(changed)trackGuestDrop();d.frame=requestAnimationFrame(guestAutoScroll);
+}
+function beginGuestDrag(e,handle){
+ const id=handle.dataset.dragGuest;if(!state.guestList.some(g=>g.id===id))return;
+ // Occupied chairs and labels always move exactly one guest, regardless of bulk selection.
+ const ids=handle.closest('#seat-map-dialog')||handle.matches('[data-guest-drop-seat]')?[id]:(guestPicked.has(id)?[...guestPicked]:[id]);
+ guestDrag={id,ids,handle,pointerId:e.pointerId,pointerType:e.pointerType,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,active:false,cache:new Map()};try{handle.setPointerCapture(e.pointerId);}catch{}
+}
+function activateGuestDrag(){
+ const d=guestDrag;if(!d)return;d.active=true;hideSeatTip();document.body.classList.add('guest-dragging');
+ const g=state.guestList.find(g=>g.id===d.id),ghost=document.createElement('div');ghost.className='guest-drag-ghost';ghost.setAttribute('aria-hidden','true');
+ const title=document.createElement('strong'),sub=document.createElement('small');title.textContent=d.ids.length===1?g.name:`${d.ids.length} guests`;ghost.append(title,sub);
+ const modal=[...document.querySelectorAll('dialog[open]')].at(-1);(modal||document.body).appendChild(ghost);d.ghost=ghost;d.handle.classList.add('drag-source');trackGuestDrop();d.frame=requestAnimationFrame(guestAutoScroll);
+}
+function finishGuestDrag(cancel=false){
+ const d=guestDrag;if(!d)return;guestDrag=null;cancelAnimationFrame(d.frame);clearGuestHover();d.ghost?.remove();d.handle.classList.remove('drag-source');document.body.classList.remove('guest-dragging');
+ try{if(d.handle.hasPointerCapture(d.pointerId))d.handle.releasePointerCapture(d.pointerId);}catch{}
+ if(!d.active)return;suppressGuestClickUntil=Date.now()+450;
+ if(cancel){$('guest-drag-status').textContent='Move cancelled. Assignments unchanged.';return;}
+ if(!d.target){toast('No seat selected. Assignments unchanged.');return;}
+ try{
+   const next=G.dropGuests(state,d.ids,{tableId:d.target.tableId,seatNumber:d.target.seatNumber});if(JSON.stringify(next)===JSON.stringify(state)){toast('Already in that seat / at that table.');return;}
+   state=next;guestPicked.clear();commit(d.preview?.message?.startsWith('Swap')?'Seats swapped. Undo is available.':d.target.tableId?`${d.ids.length} guest(s) assigned to ${tableLabel(d.target.tableId)}. Undo is available.`:'Guests unassigned; all records retained.');$('guest-drag-status').textContent='Seating updated. Undo is available.';
+ }catch(e){toast(e.message);setGuestError('guest-action-error',e.message);$('guest-drag-status').textContent=e.message;}
+}
+document.addEventListener('pointerdown',e=>{
+ suppressGuestClickUntil=0;if(guestDrag){if(e.pointerId!==guestDrag.pointerId){e.preventDefault();e.stopImmediatePropagation();}return;}
+ const handle=e.target.closest('[data-drag-guest]');if(!handle||e.button!==0)return;e.preventDefault();e.stopPropagation();beginGuestDrag(e,handle);
+},true);
+document.addEventListener('pointermove',e=>{if(!guestDrag||guestDrag.pointerId!==e.pointerId)return;e.preventDefault();e.stopPropagation();const d=guestDrag;d.x=e.clientX;d.y=e.clientY;if(!d.active&&Math.hypot(d.x-d.startX,d.y-d.startY)>6)activateGuestDrag();if(d.active)trackGuestDrop();},{capture:true,passive:false});
+document.addEventListener('pointerup',e=>{if(guestDrag?.pointerId!==e.pointerId)return;if(guestDrag.active){e.preventDefault();e.stopPropagation();guestDrag.x=e.clientX;guestDrag.y=e.clientY;trackGuestDrop();}finishGuestDrag(false);},true);
+for(const type of ['pointercancel','lostpointercapture'])document.addEventListener(type,e=>{if(guestDrag?.pointerId===e.pointerId)finishGuestDrag(true);},true);
+document.addEventListener('keydown',e=>{if(guestDrag&&e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();finishGuestDrag(true);}},true);
+window.addEventListener('blur',()=>finishGuestDrag(true));document.addEventListener('visibilitychange',()=>{if(document.hidden)finishGuestDrag(true);});
+document.addEventListener('click',e=>{
+ if(e.detail>0&&Date.now()<suppressGuestClickUntil){e.preventDefault();e.stopImmediatePropagation();return;}
+ const handle=e.target.closest('[data-drag-guest]');if(handle&&!handle.matches('[data-open-seat-table],[data-seat-select]')){e.preventDefault();e.stopPropagation();openGuestForm(handle.dataset.dragGuest);}
+},true);
+for(const id of ['guest-dock-list','guest-board-pool-list'])$(id).addEventListener('click',e=>{const b=e.target.closest('[data-edit-guest]');if(b)openGuestForm(b.dataset.editGuest);});
+$('guest-dock-list').addEventListener('change',e=>{const cb=e.target.closest('[data-dock-pick]');if(!cb)return;cb.checked?guestPicked.add(cb.dataset.dockPick):guestPicked.delete(cb.dataset.dockPick);renderGuestDock();renderGuestSelection();});
+$('guest-dock-select-all').onchange=e=>{const ids=[...$('guest-dock-list').querySelectorAll('[data-dock-pick]')].map(el=>el.dataset.dockPick);for(const id of ids)e.target.checked?guestPicked.add(id):guestPicked.delete(id);renderGuestDock();};
+$('guest-dock-clear').onclick=()=>{guestPicked.clear();renderGuestDock();};$('guest-dock-search').oninput=renderGuestDock;for(const id of ['guest-dock-filter','guest-dock-source'])$(id).onchange=renderGuestDock;
+$('guest-board-search').oninput=renderBoardPool;for(const id of ['guest-seat-plan','seat-guests-tool'])$(id).onclick=seatOnPlan;
+$('guest-dock-undo').onclick=undo;$('guest-dock-redo').onclick=redo;$('guest-dock-next').onclick=()=>{if(!guestPicked.size){toast('Select guests using the checkboxes first.');return;}openDistribution();};
+for(const button of document.querySelectorAll('[data-walk]')){
+ button.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();button.focus({preventScroll:true});button.setPointerCapture(e.pointerId);button.classList.add('held');scene?.startWalk('pad-'+e.pointerId,button.dataset.walk);});
+ const release=e=>{scene?.endWalk('pad-'+e.pointerId);button.classList.remove('held');};for(const type of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(type,release);
+ button.onclick=e=>{if(e.detail===0)scene?.step(button.dataset.walk);};
+}
+$('walk-speed').onchange=()=>{if(scene)scene.walk.speed=Number($('walk-speed').value);};$('walk-mouse').onclick=()=>scene?.lockMouse();$('walk-home').onclick=()=>scene?.reset();
+document.addEventListener('keyup',e=>{scene?.endWalk('key-'+e.code);if(e.key==='Shift'&&scene)scene.walk.fast=false;});document.addEventListener('focusin',e=>{if(e.target.matches('input,select,textarea,[contenteditable="true"]'))scene?.stopWalking();});
+const modalWatch=new MutationObserver(()=>{if(document.querySelector('dialog[open]'))scene?.stopWalking();});for(const d of document.querySelectorAll('dialog'))modalWatch.observe(d,{attributes:true,attributeFilter:['open']});

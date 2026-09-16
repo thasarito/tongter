@@ -1,0 +1,111 @@
+/* Glass House Studio — shared, renderer-independent layout model. Metres: X right, Z entrance. */
+(function (root) {
+  'use strict';
+  const VERSION=2, D={width:27.2,depth:11.25,back:-5.625,front:5.625,notchX:-9.8,notchBack:.625,notchFront:3.425,eave:3.5,ridge:7.5};
+  const BAYS=[{x:-9.2,r:3},{x:0,r:3.6},{x:9.2,r:3}];
+  const KINDS=['table','stage','aisle','runner','band','bar','buffet','dance'];
+  const clone=x=>JSON.parse(JSON.stringify(x));
+  const radians=a=>a*Math.PI/180;
+  function footprint(steps=40){
+    const p=[[-13.6,D.front],[13.6,D.front],[13.6,D.back],[12.2,D.back]];
+    for(let n=2;n>=0;n--){const b=BAYS[n];if(n<2)p.push([b.x+b.r,D.back]);
+      for(let i=1;i<=steps;i++){const a=i/steps*Math.PI;p.push([b.x+b.r*Math.cos(a),D.back-b.r*Math.sin(a)]);}}
+    p.push([-13.6,D.back],[-13.6,D.notchBack],[D.notchX,D.notchBack],[D.notchX,D.notchFront],[-13.6,D.notchFront]);
+    return p;
+  }
+  function pointInside(x,z,p=footprint()){
+    let inside=false;
+    for(let i=0,j=p.length-1;i<p.length;j=i++){
+      const [ax,az]=p[j],[bx,bz]=p[i],dx=bx-ax,dz=bz-az;
+      if(Math.abs((x-ax)*dz-(z-az)*dx)<1e-7 && (x-ax)*(x-bx)+(z-az)*(z-bz)<=1e-7)return true;
+      if((az>z)!==(bz>z)&&x<(bx-ax)*(z-az)/(bz-az)+ax)inside=!inside;
+    }return inside;
+  }
+  function transform(p,o){const a=radians(o.rotation||0),c=Math.cos(a),s=Math.sin(a);return p.map(([x,z])=>[o.x+x*c-z*s,o.z+x*s+z*c]);}
+  function rectangle(w,d,cx=0,cz=0){return [[cx-w/2,cz-d/2],[cx+w/2,cz-d/2],[cx+w/2,cz+d/2],[cx-w/2,cz+d/2]];}
+  function localPolygon(o,seating=true){
+    if(o.kind==='aisle'){const t=o.aisleWidth||1.05,w=o.w,d=o.d;return [[-w/2,-d/2],[w/2,-d/2],[w/2,-d/2+t],[-w/2+t,-d/2+t],[-w/2+t,d/2],[-w/2,d/2]];}
+    if((o.kind==='table'&&o.shape!=='rect')||o.kind==='band'){
+      const extra=o.kind==='table'&&seating?.43:0,rx=o.w/2+extra,rz=o.d/2+extra;
+      return Array.from({length:48},(_,i)=>{const a=i/48*Math.PI*2;return [Math.cos(a)*rx,Math.sin(a)*rz];});
+    }
+    const extra=o.kind==='table'&&seating?.43:0;return rectangle(o.w+extra*2,o.d+extra*2);
+  }
+  function itemPolygon(o,seating=true){return transform(localPolygon(o,seating),o);}
+  function itemParts(o,seating=true){
+    if(o.kind!=='aisle')return [itemPolygon(o,seating)];
+    const t=o.aisleWidth||1.05;
+    return [rectangle(o.w,t,0,-o.d/2+t/2),rectangle(t,o.d-t,-o.w/2+t/2,t/2)].map(p=>transform(p,o));
+  }
+  function sat(a,b){
+    for(const p of [a,b])for(let i=0;i<p.length;i++){
+      const q=p[i],r=p[(i+1)%p.length],nx=-(r[1]-q[1]),nz=r[0]-q[0];
+      let am=Infinity,aM=-Infinity,bm=Infinity,bM=-Infinity;
+      for(const v of a){const k=v[0]*nx+v[1]*nz;am=Math.min(am,k);aM=Math.max(aM,k);}
+      for(const v of b){const k=v[0]*nx+v[1]*nz;bm=Math.min(bm,k);bM=Math.max(bM,k);}
+      if(aM<=bm+.002||bM<=am+.002)return false;
+    }return true;
+  }
+  function overlap(a,b){return itemParts(a).some(pa=>itemParts(b).some(pb=>sat(pa,pb)));}
+  function conflicts(state){
+    const warnings=[],floor=footprint(),items=state.items;
+    for(const a of items){const p=itemPolygon(a),outside=p.some((v,i)=>{const w=p[(i+1)%p.length],n=Math.ceil(Math.hypot(v[0]-w[0],v[1]-w[1])/.15);for(let j=0;j<=n;j++){const t=n?j/n:0;if(!pointInside(v[0]+(w[0]-v[0])*t,v[1]+(w[1]-v[1])*t,floor))return true;}return false;});
+      if(outside)warnings.push({type:'outside',ids:[a.id],message:`${displayName(a)} extends beyond the indoor footprint.`});
+    }
+    for(let i=0;i<items.length;i++)for(let j=i+1;j<items.length;j++){
+      const a=items[i],b=items[j];
+      if(overlap(a,b))warnings.push({type:'overlap',ids:[a.id,b.id],message:`${displayName(a)} / ${displayName(b)}: footprints or chairs overlap.`});
+    }return warnings;
+  }
+  function displayName(o){return o.kind==='table'?`Table ${o.label}`:o.label;}
+  function pixelPosition(x,y){return {x:(x-568)/884*27.2,z:(y-637)/351*11.25+5.625};}
+  function defaultLayout(){
+    const pixels=[[1,808,377,15],[2,808,548,-14],[3,705,376,15],[4,706,548,-14],[5,611,374,14],[6,508,375,17],[7,508,457,0],[8,507,545,-14],[9,417,371,15],[10,414,455,5],[11,415,547,-14],[12,323,365,15],[13,331,435,14],[14,231,362,14],[15,237,430,14],[16,628,267,16],[17,567,208,16],[18,513,265,16],[19,311,245,16],[20,232,241,16]];
+    const items=pixels.map(([n,x,y,r])=>({id:`table-${n}`,kind:'table',shape:'oval',label:String(n),...pixelPosition(x,y),w:2,d:1.2,h:.76,rotation:r,seats:10,guests:[],locked:false}));
+    items.push({id:'stage-1',kind:'stage',shape:'rect',label:'Stage',x:10.94,z:.12,w:2.55,d:6.5,h:.45,rotation:0,seats:0,locked:true});
+    items.push({id:'aisle-1',kind:'aisle',shape:'rect',label:'L-shaped aisle',x:4.58,z:2.565,w:10.25,d:6.12,h:.016,aisleWidth:1.05,rotation:0,seats:0,locked:true});
+    items.push({id:'band-1',kind:'band',shape:'oval',label:'Band',x:9.2,z:-7.0,w:4.4,d:1.9,h:.15,rotation:0,seats:0,locked:true});
+    items.push({id:'bar-1',kind:'bar',shape:'rect',label:'Bar',x:-10.45,z:4.28,w:1.15,d:1.5,h:1.05,rotation:0,seats:0,locked:true});
+    return {version:VERSION,title:'The Glass House · Reference wedding layout',units:'metres',items};
+  }
+  function createItem(kind,existing=[]){
+    if(!KINDS.includes(kind))throw new Error('Unknown object type.');
+    const o={id:`${kind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`,kind,shape:kind==='table'?'oval':'rect',label:kind==='table'?String(Math.max(0,...existing.filter(o=>o.kind==='table').map(o=>Number(o.label)||0))+1):({runner:'Aisle runner',dance:'Dance floor',buffet:'Buffet',stage:'Stage',bar:'Bar',band:'Band',aisle:'L-shaped aisle'}[kind]),x:0,z:0,w:2,d:1.2,h:.76,rotation:0,seats:kind==='table'?10:0,guests:[],locked:false};
+    const defaults={stage:[3,6,.45],runner:[1.2,4,.016],aisle:[6,5,.016],band:[4,2,.15],bar:[2,.8,1.05],buffet:[3,.8,.9],dance:[4,4,.03]};
+    if(defaults[kind])[o.w,o.d,o.h]=defaults[kind];if(kind==='aisle')o.aisleWidth=1.05;
+    // Find a free, indoor center without moving the reference objects.
+    let found=false;
+    for(let z=3.5;z>-5&&!found;z-=1.5)for(let x=-7;x<10&&!found;x+=1.5){o.x=x;o.z=z;if(itemPolygon(o).every(p=>pointInside(p[0],p[1]))&&!existing.some(e=>overlap(o,e)))found=true;}
+    if(!found){o.x=0;o.z=2;}
+    return o;
+  }
+  function parseLayout(text){
+    if(typeof text!=='string'||text.length>2000000)throw new Error('Layout must be a JSON file smaller than 2 MB.');
+    let s;try{s=JSON.parse(text);}catch{throw new Error('This is not valid JSON.');}
+    if(!s||s.version!==VERSION||!Array.isArray(s.items))throw new Error('Not a Glass House Studio v2 layout.');
+    if(s.items.length>200)throw new Error('This viewer supports at most 200 objects.');
+    const ids=new Set();
+    const items=s.items.map((o,i)=>{
+      if(!o||typeof o.id!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(o.id)||ids.has(o.id))throw new Error(`Object ${i+1} has an invalid or duplicate ID.`);
+      ids.add(o.id);if(!KINDS.includes(o.kind))throw new Error(`Object ${i+1} has an unknown type.`);
+      for(const [k,lo,hi] of [['x',-40,40],['z',-30,30],['w',.3,20],['d',.3,20],['h',.001,5],['rotation',-360,360]])if(typeof o[k]!=='number'||!Number.isFinite(o[k])||o[k]<lo||o[k]>hi)throw new Error(`${displayName(o)} has an invalid ${k}.`);
+      if(['table','bar','buffet'].includes(o.kind)&&o.h<.2)throw new Error('Furniture height must be at least 0.2 m.');
+      if(o.kind==='table'&&o.shape==='round'&&Math.abs(o.w-o.d)>1e-6)throw new Error('Round tables require equal width and depth.');
+      if(!['oval','round','rect'].includes(o.shape))throw new Error(`Object ${i+1} has an invalid shape.`);
+      if(typeof o.label!=='string'||o.label.length>80)throw new Error('Object labels must have at most 80 characters.');
+      if(!Number.isInteger(o.seats)||o.seats<0||o.seats>16||(o.kind==='table'&&o.seats<1))throw new Error('Each table must have 1–16 seats.');
+      if(o.guests!==undefined&&(!Array.isArray(o.guests)||o.guests.length>o.seats||o.guests.some(x=>typeof x!=='string'||x.length>100)))throw new Error('Invalid guest names.');
+      if(o.kind==='aisle'&&(typeof o.aisleWidth!=='number'||o.aisleWidth<.4||o.aisleWidth>Math.min(o.w,o.d)))throw new Error('Invalid aisle width.');
+      const n={};for(const k of ['id','kind','shape','label','x','z','w','d','h','rotation','seats'])n[k]=o[k];n.locked=!!o.locked;n.guests=o.guests?[...o.guests]:[];if(o.kind==='aisle')n.aisleWidth=o.aisleWidth;
+      return n;
+    });return {version:VERSION,title:typeof s.title==='string'?s.title.slice(0,120):'The Glass House · Layout',units:'metres',items};
+  }
+  class History{
+    constructor(s){this.list=[clone(s)];this.index=0;}
+    get current(){return clone(this.list[this.index]);}get canUndo(){return this.index>0;}get canRedo(){return this.index<this.list.length-1;}
+    push(s){if(JSON.stringify(this.list[this.index])===JSON.stringify(s))return;this.list.splice(this.index+1);this.list.push(clone(s));if(this.list.length>70)this.list.shift();this.index=this.list.length-1;}
+    undo(){if(this.canUndo)this.index--;return this.current;}redo(){if(this.canRedo)this.index++;return this.current;}
+  }
+  const api={VERSION,D,BAYS,KINDS,clone,radians,footprint,pointInside,rectangle,transform,localPolygon,itemPolygon,itemParts,overlap,conflicts,displayName,defaultLayout,createItem,parseLayout,History};
+  root.GH=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+})(typeof window!=='undefined'?window:globalThis);
