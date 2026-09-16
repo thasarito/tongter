@@ -8,5 +8,6 @@ export function sampleJoystick(dx:number,dy:number,radius:number,deadZone=.12):J
   if(!length)return {...NEUTRAL_JOYSTICK};
   const dead=Number.isFinite(deadZone)?Math.min(.9,Math.max(0,deadZone)):.12;
   const distance=Math.min(length,radius),magnitude=Math.max(0,(distance/radius-dead)/(1-dead));
-  return {right:dx/length*magnitude,forward:-dy/length*magnitude,knobX:dx/length*distance,knobY:dy/length*distance};
+  // Canonical neutral axes avoid signed zero at the dead-zone boundary.
+  return {right:magnitude?dx/length*magnitude:0,forward:magnitude?-dy/length*magnitude:0,knobX:dx/length*distance,knobY:dy/length*distance};
 }
