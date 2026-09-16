@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Html } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import { Matrix4 } from "three";
 import { radians, seats } from "../model/geometry";
@@ -19,7 +20,7 @@ export function BanquetTable({item}:{item:StudioItem}){
       cushions.push(root.clone().multiply(boxMatrix({position:[0,.46,0],scale:[.4,.055,.37]})));
     }
     return {frames,cushions,numbers};
-  },[item]);
+  },[item.w,item.d,item.seats]);
   const colors=useMemo(()=>seats(item).map(s=>occupant(layout,{tableId:item.id,seatNumber:s.number})?"#607d5b":"#eee7d4"),[layout,item]);
   const clickSeat=(numbers:number[])=>(e:ThreeEvent<MouseEvent>)=>{e.stopPropagation();if(view==="inside"||e.instanceId===undefined)return;setModal({type:"seat",target:{tableId:item.id,seatNumber:numbers[e.instanceId]}});};
   const circle=item.shape!=="rect";
@@ -34,5 +35,6 @@ export function BanquetTable({item}:{item:StudioItem}){
       <InstancedBoxes matrices={chairData.frames} color="#b7bba7" metalness={.65} userData={{tableId:item.id,seatNumbers:chairData.numbers}} onClick={clickSeat(chairData.numbers)}/>
       <InstancedBoxes matrices={chairData.cushions} colors={colors} metalness={0} userData={{tableId:item.id,seatNumbers:colors.map((_,i)=>i+1)}} onClick={clickSeat(colors.map((_,i)=>i+1))}/>
     </group>
+    {options.tableLabels&&<Html center position={[0,item.h+.08,0]} style={{pointerEvents:"none"}} zIndexRange={[8,0]}><span className="studio-table-number">{item.label}</span></Html>}
   </group>;
 }

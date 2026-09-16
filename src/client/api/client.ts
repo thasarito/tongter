@@ -63,7 +63,7 @@ export const weddingApi = {
     }>(`/api/rsvp/${encodeURIComponent(token)}?${query(lang)}`),
   seat: (token: string, search: string, lang: Lang) =>
     getJson<{ view: SeatView; debug: boolean }>(
-      `/api/seat/${encodeURIComponent(token)}` + `?${query(lang)}&${search.replace(/^\?/, "")}`,
+      `/api/seat/${encodeURIComponent(token)}?${query(lang)}&${search.replace(/^\?/, "")}`,
     ),
   submitRsvp: (token: string, body: unknown) =>
     postJson<{ ok: true; seatHref: string }>(

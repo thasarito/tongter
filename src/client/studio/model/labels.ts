@@ -8,8 +8,8 @@ export function wrapName(value: string,max: number,measure: (s:string)=>number):
   for(const c of chars){if(line&&measure(line+c)>max){lines.push(line.trimEnd());line=c.trimStart();}else line+=c;}
   if(line)lines.push(line);return lines.length?lines:[""];
 }
-/** Global packing, not independent packing per table. If local nudging fails,
- * an overflow rail beyond all existing badges guarantees separation. */
+/** Global packing, not independent packing per table. Overflow is placed beyond
+ * all prior badges when nearby positions are exhausted, never left overlapping. */
 export function labelLayout(s: StudioLayout,measure: (text:string)=>number): LabelBox[] {
   const placed:LabelBox[]=[];
   for(const t of s.items.filter(t=>t.kind==="table").slice().sort((a,b)=>a.id.localeCompare(b.id)))for(const seat of seats(t)){
@@ -23,13 +23,13 @@ export function labelLayout(s: StudioLayout,measure: (text:string)=>number): Lab
   }
   return placed;
 }
-export function diagramLabels(layout: StudioLayout,table: StudioItem): LabelBox[] {
-  const map=new Map(labelLayout({...layout,items:[table]},s=>Array.from(s).length*.11).map(l=>[l.seatNumber,l]));
-  const list=seats(table).flatMap(s=>{const l=map.get(s.number);return l?[{...l,anchor:[s.world[0]-table.x,s.world[1]-table.z] as Point}]:[];});
+export function diagramLabels(layout: StudioLayout,table: StudioItem,measure:(s:string)=>number=s=>Array.from(s).length*.11): LabelBox[] {
+  const positions=seats(table),outside=Math.max(.5,...positions.map(p=>Math.abs(p.world[0]-table.x)))+.65;
+  const map=new Map(labelLayout({...layout,items:[table]},measure).map(l=>[l.seatNumber,l]));
+  const list=positions.flatMap(s=>{const l=map.get(s.number);return l?[{...l,anchor:[s.world[0]-table.x,s.world[1]-table.z] as Point}]:[];});
   for(const right of [false,true]){
-    const side=list.filter(l=>(l.anchor[0]>=0)===right).sort((a,b)=>a.anchor[1]-b.anchor[1]);
-    let y=-side.reduce((sum,l)=>sum+l.h+.12,0)/2;
-    for(const l of side){l.x=right?2:-2-l.w;l.y=y;y+=l.h+.12;}
+    const side=list.filter(l=>(l.anchor[0]>=0)===right).sort((a,b)=>a.anchor[1]-b.anchor[1]);let y=-side.reduce((sum,l)=>sum+l.h+.12,0)/2;
+    for(const l of side){l.x=right?outside:-outside-l.w;l.y=y;y+=l.h+.12;}
   }
   return list;
 }

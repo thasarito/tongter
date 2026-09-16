@@ -4,7 +4,8 @@ export const kinds = ["table", "stage", "aisle", "runner", "band", "bar", "buffe
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,100}$/);
 const text = (max: number) => z.string().trim().max(max).default("");
 const coordinate = (min: number, max: number) => z.number().finite().min(min).max(max);
-const seat = z.number().int().min(1).max(1000).nullable().default(null);
+// The original reception export used 0 for an unassigned / HOLD seat.
+const seat = z.preprocess(value => value === 0 ? null : value, z.number().int().min(1).max(1000).nullable()).default(null);
 export const itemSchema = z.object({
   id, kind: z.enum(kinds), shape: z.enum(["oval", "round", "rect"]), label: z.string().max(80),
   x: coordinate(-40, 40), z: coordinate(-30, 30), w: coordinate(.3, 20), d: coordinate(.3, 20),
@@ -79,7 +80,7 @@ export function normalizeLayout(input: unknown): StudioLayout {
   }
   // Reserve explicit seats before assigning any omitted seat numbers.
   for (const g of guestList) if (g.tableId && g.seatNumber === null) {
-    const t = tables.get(g.tableId)!, occupied = used.get(t.id)!;
+    const t = tables.get(g.tableId)!, occupied = used.get(g.tableId)!;
     const free = Array.from({ length: t.seats }, (_, i) => i + 1).find(n => !occupied.has(n));
     if (!free) throw Error(`Table ${t.label} is full. No assignments were changed.`);
     g.seatNumber = free; occupied.add(free);

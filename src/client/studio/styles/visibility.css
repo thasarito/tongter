@@ -1,0 +1,2 @@
+/* Explicit display rules must not override the browser's hidden attribute. */
+.studio-root [hidden],.studio-modal [hidden]{display:none!important}
