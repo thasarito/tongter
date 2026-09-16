@@ -38,8 +38,8 @@ export function SheetConnection({children,onUnauthorized,loadSheet=fetchStudioSh
 export function SheetStatus(){
   const value=useContext(ConnectionContext),studio=useStudio();if(!value)return null;
   const {snapshot,busy,error,reload}=value,problem=studio.syncError||error;
-  return <section className={`studio-sheet-status ${problem?"warning":""}`} aria-label="Sheet synchronization status" data-sheet-revision={snapshot?.revision} data-save-pending={studio.pending}>
-    <div><strong>{studio.busy?"Saving to Google Sheets…":problem?"Sheet connection needs attention":"Live Google Sheet · autosave"}</strong><span>{problem||(snapshot?`${studio.layout.guestList.length} guests · ${studio.layout.guestList.filter(g=>g.tableId).length} seated · ${studio.layout.items.filter(t=>t.kind==="table").length} tables · checked ${new Date(snapshot.fetchedAt).toLocaleTimeString()}`:"Connecting…")}</span></div>
+  return <section className={`studio-sheet-status ${problem?"warning":""}`} aria-label="Sheet synchronization status" data-sheet-revision={snapshot?.revision} data-save-pending={studio.pending} data-pending-count={studio.pendingCount}>
+    <div><strong>{studio.busy?"Saving to Google Sheets…":problem?"Sheet connection needs attention":"Live Google Sheet · autosave"}</strong><span>{problem||(studio.pending?studio.saved:snapshot?`${studio.layout.guestList.length} guests · ${studio.layout.guestList.filter(g=>g.tableId).length} seated · ${studio.layout.items.filter(t=>t.kind==="table").length} tables · checked ${new Date(snapshot.fetchedAt).toLocaleTimeString()}`:"Connecting…")}</span></div>
     {studio.pending?<button disabled={studio.busy} onClick={studio.retry}>{studio.busy?"Saving…":"Retry save"}</button>:<button onClick={reload} disabled={busy}>{busy?"Checking…":"Reload sheet"}</button>}
   </section>;
 }
