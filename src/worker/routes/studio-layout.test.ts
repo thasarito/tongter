@@ -6,7 +6,7 @@ import type { WorkerBindings } from "../env";
 import { defaultLayout } from "@/client/studio/model/defaults";
 import { normalizeLayout } from "@/client/studio/model/schema";
 const now=()=>Date.parse("2026-01-01T00:00:00Z");
-const env:WorkerBindings={GOOGLE_SHEET_ID:"synthetic-sheet",GOOGLE_CREDENTIALS_JSON:"",ADMIN_SESSION_SECRET:"synthetic-live-sheet-session-secret"};
+const env:WorkerBindings={GOOGLE_SHEET_ID:"synthetic-sheet",GOOGLE_CREDENTIALS_JSON:"",ADMIN_PASSPHRASE:"synthetic-only",ADMIN_SESSION_SECRET:"synthetic-live-sheet-session-secret"};
 function fixture(fail=false){
   const layout=normalizeLayout({...defaultLayout(),guestList:[{id:"test-first",name:"Sheet Guest A",tableId:"table-12",seatNumber:3},{id:"test-last",name:"Sheet Guest B",tableId:"table-12",seatNumber:9},{id:"test-waiting",name:"Waiting Guest",tableId:"",seatNumber:null}]});
   const repository={getSnapshot:vi.fn(async()=>({status:"unconfigured" as const,guests:[],groups:[],rsvps:[],fetchedAt:0,warnings:[]})),invalidate:vi.fn(),appendRsvp:vi.fn(async()=>{}),getStudioLayout:vi.fn(async()=>{if(fail)throw Error("PRIVATE_UPSTREAM_DETAIL");return {status:"ok" as const,layout,revision:"synthetic-revision",fetchedAt:now(),source:"Google Sheets" as const};})};
