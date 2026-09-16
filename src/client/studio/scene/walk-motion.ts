@@ -9,6 +9,10 @@ export class WalkMotion {
   readonly held=new Map<string,[number,number]>();
   constructor(private readonly canMove=(x:number,z:number)=>[[0,0],[.16,0],[-.16,0],[0,.16],[0,-.16]].every(([dx,dz])=>pointInside(x+dx,z+dz,floor))){}
   press(key:string,direction:WalkDirection){if(this.enabled)this.held.set(key,axes[direction]);}
+  setAnalog(key:string,right:number,forward:number){
+    if(!this.enabled||!Number.isFinite(right)||!Number.isFinite(forward)||Math.hypot(right,forward)<.001){this.release(key);return;}
+    const scale=Math.max(1,Math.hypot(right,forward));this.held.set(key,[right/scale,forward/scale]);
+  }
   release(key:string){this.held.delete(key);}
   look(dx:number,dy:number){if(!this.enabled)return;this.targetYaw-=dx*.0028;this.targetPitch=Math.max(-1.05,Math.min(1.15,this.targetPitch-dy*.0025));}
   stop(){this.held.clear();this.vx=this.vz=0;this.fast=false;this.targetYaw=this.yaw;this.targetPitch=this.pitch;}

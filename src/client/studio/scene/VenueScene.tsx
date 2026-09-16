@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Group } from "three";
 import { useStudio } from "../state/StudioProvider";
+import { useStudioChrome } from "../state/StudioChrome";
 import { download } from "../model/exchange";
 import { VenueShell } from "./VenueShell";
 import { BanquetTable } from "./BanquetTable";
 import { EventZone } from "./EventZone";
 import { WalkController } from "./WalkController";
-import { WalkMotion, type WalkDirection } from "./walk-motion";
+import { WalkMotion } from "./walk-motion";
+import { WalkJoystick } from "./WalkJoystick";
 import { SeatLabels } from "./SeatLabels";
 import { ModelControls, ScenePicker } from "./SceneControls";
 
@@ -25,34 +27,34 @@ function SceneContents({motion}:{motion:WalkMotion}){
     {options.guestNames&&options.furniture&&options.chairs&&<SeatLabels/>}
   </>;
 }
-function WalkPad({motion,host}:{motion:WalkMotion;host:RefObject<HTMLDivElement|null>}){
-  const {notify}=useStudio();
-  const hold=(direction:WalkDirection)=>(e:ReactPointerEvent<HTMLButtonElement>)=>{
-    if(e.button!==0)return;e.preventDefault();e.currentTarget.focus({preventScroll:true});e.currentTarget.setPointerCapture(e.pointerId);motion.press(`pad:${e.pointerId}`,direction);
-  };
-  const release=(e:ReactPointerEvent<HTMLButtonElement>)=>motion.release(`pad:${e.pointerId}`);
+function WalkControls({motion,host}:{motion:WalkMotion;host:RefObject<HTMLDivElement|null>}){
+  const {notify,modal}=useStudio(),{open}=useStudioChrome(),[resetVersion,setResetVersion]=useState(0);
   function toggleMouse(){
     const canvas=host.current?.querySelector("canvas");if(!canvas)return;
     if(document.pointerLockElement===canvas){void document.exitPointerLock();return;}
     try{const result=canvas.requestPointerLock();result?.catch(()=>notify("Mouse capture unavailable; drag the view to look instead."));}
     catch{notify("Mouse capture unavailable; drag the view to look instead.");}
   }
-  return <div className="studio-walk-pad"><small>HOLD TO WALK · DRAG TO LOOK<br/>WASD / ARROWS · SHIFT = FASTER</small>
-    <div><button onPointerDown={hold("forward")} onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release} aria-label="Hold to walk forward">↑</button></div>
-    <div>{(["left","back","right"] as const).map((d,i)=><button key={d} onPointerDown={hold(d)} onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release} aria-label={`Hold to walk ${d}`}>{["←","↓","→"][i]}</button>)}</div>
-    <select aria-label="Walking pace" defaultValue="1.6" onChange={e=>{motion.speed=Number(e.target.value);}}><option value=".8">Slow stroll</option><option value="1.6">Normal pace</option><option value="2.6">Brisk walk</option></select>
-    <div><button onClick={()=>motion.reset()}>Reset</button><button onClick={toggleMouse}>Mouse look</button></div>
-  </div>;
+  return <>
+    <WalkJoystick motion={motion} disabled={open||!!modal} resetVersion={resetVersion}/>
+    {!open&&<details className="studio-walk-settings" data-studio-ui onToggle={()=>motion.stop()}>
+      <summary>Walk settings</summary>
+      <label>Walking pace<select aria-label="Walking pace" defaultValue="1.6" onChange={e=>{motion.speed=Number(e.target.value);}}><option value=".8">Slow stroll</option><option value="1.6">Normal pace</option><option value="2.6">Brisk walk</option></select></label>
+      <button onClick={()=>{motion.reset();setResetVersion(n=>n+1);}}>Reset position</button>
+      <button className="studio-mouse-look" onClick={toggleMouse}>Mouse look</button>
+      <small>Hold WASD / arrows. Escape releases mouse capture.</small>
+    </details>}
+  </>;
 }
 export default function VenueScene(){
   const {view,setView,notify}=useStudio(),[motion]=useState(()=>new WalkMotion()),host=useRef<HTMLDivElement>(null);
   useEffect(()=>()=>motion.stop(),[motion]);
   function exportImage(){const canvas=host.current?.querySelector("canvas");if(!canvas)return;try{canvas.toBlob(blob=>{if(blob)download(`glass-house-${view}.png`,blob,"image/png");else notify("Unable to export this view.");},"image/png");}catch{notify("Unable to export this view.");}}
   return <div ref={host} data-studio-canvas className="studio-three-view">
-    <Canvas shadows dpr={[1,1.75]} frameloop={view==="inside"?"always":"demand"} camera={{position:[24,23,29],fov:42,near:.05,far:250}} gl={{antialias:true,preserveDrawingBuffer:true}} fallback={<div className="studio-render-fallback"><p>3D graphics are unavailable in this browser. Your draft is intact.</p><button onClick={()=>setView("plan")}>Return to floor plan</button></div>}>
+    <Canvas style={{touchAction:"none"}} shadows dpr={[1,1.75]} frameloop={view==="inside"?"always":"demand"} camera={{position:[24,23,29],fov:42,near:.05,far:250}} gl={{antialias:true,preserveDrawingBuffer:true}} fallback={<div className="studio-render-fallback"><p>3D graphics are unavailable in this browser. Your draft is intact.</p><button onClick={()=>setView("plan")}>Return to floor plan</button></div>}>
       <SceneContents motion={motion}/>
     </Canvas>
-    <div className="studio-viewport-actions"><button onClick={()=>setView("plan")}>Floor plan</button><button onClick={exportImage}>PNG</button></div>
-    {view==="inside"&&<WalkPad motion={motion} host={host}/>}
+    <div className="studio-viewport-actions" data-studio-ui><button onClick={()=>setView("plan")}>Floor plan</button><button onClick={exportImage}>PNG</button></div>
+    {view==="inside"&&<WalkControls motion={motion} host={host}/>}
   </div>;
 }
