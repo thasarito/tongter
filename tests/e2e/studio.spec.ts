@@ -17,7 +17,7 @@ async function openStudio(page:Page,scenario:"normal"|"conflict"|"lost"="normal"
   await page.goto("/admin/studio");await page.getByLabel("Administrator passphrase").fill("local-e2e-passphrase");await page.getByRole("button",{name:"Open studio",exact:true}).click();
   await expect(page.locator('.studio-plan .studio-name-badge')).toHaveCount(2);return {operations,read:()=>layout};
 }
-const approve=(page:Page,name="Confirm & save")=>page.locator("[data-sheet-confirmation]").getByRole("button",{name,exact:true}).click();
+const approve=(page:Page)=>page.locator("[data-sheet-confirmation]").getByRole("button",{name:"Confirm",exact:true}).click();
 const badge=(page:Page,id:string)=>page.locator(`.studio-plan .studio-name-badge[data-guest-drag="${id}"]`);
 async function drag(page:Page,source:Locator,target:Locator,mobile:boolean,hold?:()=>Promise<void>){
   const a=await source.boundingBox(),b=await target.boundingBox();if(!a||!b)throw Error("Missing drag target");const start={x:a.x+a.width/2,y:a.y+a.height/2},end={x:b.x+b.width/2,y:b.y+b.height/2};
@@ -34,14 +34,16 @@ test("saves one swap on drop with bounded feedback and no JSON controls",async({
     expect(metrics.outline).toBe("none");expect(metrics.vector).toBe("non-scaling-stroke");expect(metrics.stroke).toBe("2px");expect(metrics.selection).toBe("");const ghost=await page.locator('.studio-drag-ghost').boundingBox();expect(ghost!.width).toBeLessThanOrEqual(270);expect(ghost!.height).toBeLessThan(160);
     await testInfo.attach("bounded-drag-feedback",{body:await page.screenshot(),contentType:"image/png"});
   });
-  const review=page.getByRole("dialog",{name:"Swap guest seats"});await expect(review).toBeVisible();
-  await expect(review).toContainText("Alice");await expect(review).toContainText("Bob");await expect(review).toContainText("Table 1 · Seat 6");expect(sheet.operations).toHaveLength(0);
+  const review=page.getByRole("dialog",{name:"Swap Alice and Bob"});await expect(review).toBeVisible();
+  await expect(review).toHaveText("Swap Alice and BobCancelConfirm");await expect(review.getByRole("button")).toHaveCount(2);expect(sheet.operations).toHaveLength(0);
+  const bounds=await review.boundingBox();expect(bounds!.width).toBeLessThanOrEqual(360);expect(bounds!.height).toBeLessThanOrEqual(160);
+  await testInfo.attach("compact-sheet-confirmation",{body:await review.screenshot({path:testInfo.outputPath("compact-sheet-confirmation.png")}),contentType:"image/png"});
   await approve(page);
   await expect.poll(()=>sheet.read().guestList[0].seatNumber).toBe(6);await expect(badge(page,"test-alice")).toHaveAttribute("data-seat-number","6");await expect(page.locator('[aria-label="Sheet synchronization status"]')).toHaveAttribute('data-save-pending','false');expect(sheet.operations).toHaveLength(1);
   await page.getByRole("button",{name:"More panel",exact:true}).click();await page.getByRole("button",{name:"Undo",exact:true}).click();await approve(page);await expect.poll(()=>sheet.read().guestList[0].seatNumber).toBe(1);expect(sheet.operations).toHaveLength(2);await expect(page.getByRole("button",{name:"Redo",exact:true})).toBeEnabled();await page.reload();await expect(badge(page,"test-alice")).toHaveAttribute("data-seat-number","1");expect(errors).toEqual([]);
 });
 test("same-seat conflict preserves the other administrator's change",async({page,isMobile})=>{const sheet=await openStudio(page,"conflict");await drag(page,badge(page,"test-alice").locator("rect"),badge(page,"test-bob").locator("rect"),isMobile);await approve(page);await expect(badge(page,"test-alice")).toHaveCount(0);await expect(badge(page,"test-bob")).toHaveAttribute("data-seat-number","6");expect(sheet.operations).toHaveLength(1);await page.getByRole("button",{name:"More panel",exact:true}).click();await expect(page.getByRole("button",{name:"Undo",exact:true})).toBeDisabled();});
-test("lost acknowledgement retries the same operation without double-swapping",async({page,isMobile})=>{const sheet=await openStudio(page,"lost");await drag(page,badge(page,"test-alice").locator("rect"),badge(page,"test-bob").locator("rect"),isMobile);await approve(page);await page.getByRole("button",{name:"Retry save",exact:true}).click();await approve(page,"Confirm retry");await expect(page.locator('[aria-label="Sheet synchronization status"]')).toHaveAttribute('data-save-pending','false');expect(sheet.operations).toHaveLength(2);expect(sheet.operations[0].id).toBe(sheet.operations[1].id);expect(sheet.read().guestList[0].seatNumber).toBe(6);await expect(badge(page,"test-alice")).toHaveAttribute("data-seat-number","6");});
+test("lost acknowledgement retries the same operation without double-swapping",async({page,isMobile})=>{const sheet=await openStudio(page,"lost");await drag(page,badge(page,"test-alice").locator("rect"),badge(page,"test-bob").locator("rect"),isMobile);await approve(page);await page.getByRole("button",{name:"Retry save",exact:true}).click();await approve(page);await expect(page.locator('[aria-label="Sheet synchronization status"]')).toHaveAttribute('data-save-pending','false');expect(sheet.operations).toHaveLength(2);expect(sheet.operations[0].id).toBe(sheet.operations[1].id);expect(sheet.read().guestList[0].seatNumber).toBe(6);await expect(badge(page,"test-alice")).toHaveAttribute("data-seat-number","6");});
 test("loads the real R3F scene with name-only labels",async({page},testInfo)=>{
   const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));await openStudio(page);await page.getByRole("button",{name:"View panel",exact:true}).click();await page.getByRole("button",{name:"3D model",exact:true}).click();await expect(page.locator(".studio-three-view canvas")).toBeVisible();const name=page.locator('.studio-seat-name-label[data-guest-drag="test-alice"]');await expect(name).toBeVisible({timeout:20_000});await expect(name).toHaveText("Alice");await expect(name.locator("small")).toHaveCount(0);await expect(page.locator(".studio-render-fallback:visible")).toHaveCount(0);
   await expect.poll(()=>page.locator(".studio-three-view canvas").evaluate((node:HTMLCanvasElement)=>{const gl=node.getContext("webgl2");if(!gl||gl.isContextLost())return false;const pixel=new Uint8Array(4),colors=new Set<string>();for(const x of [.2,.35,.5,.65,.8])for(const y of [.2,.35,.5,.65,.8]){gl.readPixels(Math.floor(x*node.width),Math.floor(y*node.height),1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);colors.add(Array.from(pixel).join(","));}return colors.size>1;}),{timeout:15_000}).toBe(true);await testInfo.attach("r3f-sheet-labels",{body:await page.screenshot(),contentType:"image/png"});expect(errors).toEqual([]);
@@ -49,7 +51,7 @@ test("loads the real R3F scene with name-only labels",async({page},testInfo)=>{
 test("cancel and Escape leave a reviewed swap unapplied",async({page,isMobile})=>{
   const sheet=await openStudio(page);
   await drag(page,badge(page,"test-alice").locator("rect"),badge(page,"test-bob").locator("rect"),isMobile);
-  const review=page.getByRole("dialog",{name:"Swap guest seats"});
+  const review=page.getByRole("dialog",{name:"Swap Alice and Bob"});
   await expect(review.getByRole("button",{name:"Cancel",exact:true})).toBeFocused();
   await review.getByRole("button",{name:"Cancel",exact:true}).click();
   expect(sheet.operations).toHaveLength(0);await expect(badge(page,"test-alice")).toHaveAttribute("data-seat-number","1");
@@ -66,4 +68,25 @@ test("cancelled guest edit retains the entered form values",async({page})=>{
   const review=page.locator('[data-sheet-confirmation]');await expect(review).toContainText("Synthetic review guest");
   await review.getByRole("button",{name:"Cancel",exact:true}).click();
   await expect(form.getByLabel("Name",{exact:true})).toHaveValue("Synthetic review guest");expect(sheet.operations).toHaveLength(0);
+});
+test("action-only confirmation stays compact across desktop, mobile and landscape",async({page},testInfo)=>{
+  const sheet=await openStudio(page);
+  for(const size of [{width:1440,height:900},{width:390,height:844},{width:320,height:568},{width:844,height:390}]){
+    await page.setViewportSize(size);
+    await page.getByRole("button",{name:"More panel",exact:true}).click();
+    const reload=page.getByRole("button",{name:"Reload sheet",exact:true});await reload.click();
+    const review=page.getByRole("dialog",{name:"Reload Google Sheets",exact:true});
+    await expect(review).toHaveText("Reload Google SheetsCancelConfirm");
+    await expect(review.getByRole("button")).toHaveCount(2);
+    const metrics=await review.evaluate(node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,overflow:node.scrollWidth>node.clientWidth,buttons:Array.from(node.querySelectorAll("button"),button=>button.getBoundingClientRect().height)};});
+    expect(metrics.width).toBeLessThanOrEqual(360);expect(metrics.height).toBeLessThanOrEqual(160);expect(metrics.overflow).toBe(false);
+    expect(metrics.x).toBeGreaterThanOrEqual(0);expect(metrics.y).toBeGreaterThanOrEqual(0);expect(metrics.y+metrics.height).toBeLessThanOrEqual(size.height);
+    expect(metrics.buttons.every(height=>height>=44)).toBe(true);
+    await expect(review.getByRole("button",{name:"Cancel",exact:true})).toBeFocused();
+    await page.keyboard.press("Tab");await expect(review.getByRole("button",{name:"Confirm",exact:true})).toBeFocused();
+    await testInfo.attach(`compact-${size.width}x${size.height}`,{body:await review.screenshot({path:testInfo.outputPath(`compact-${size.width}x${size.height}.png`)}),contentType:"image/png"});
+    await page.keyboard.press("Escape");await expect(review).toBeHidden();await expect(reload).toBeFocused();
+    await page.getByRole("button",{name:"Close planning tools",exact:true}).click();
+  }
+  expect(sheet.operations).toHaveLength(0);
 });

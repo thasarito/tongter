@@ -1,23 +1,11 @@
-# Review Google Sheets actions
+# Google Sheets action confirmations
 
-The studio asks for confirmation before a new edit enters the Google Sheets save queue. This includes furniture movement/dimensions/locks, guest creation/edits/deletion, seating/swaps/unassignment, bulk distribution, CSV merge/replacement, reference-layout restoration, and undo/redo.
+The studio shows one concise action and two buttons, **Cancel** and **Confirm**, before user-initiated sheet actions. Examples: “Move Alice to Table 2 · Seat 3”, “Swap Alice and Bob”, “Remove 12 guests”, and “Reload Google Sheets”. No explanatory paragraphs, counters, record cards, before/after tables, badges, pagination or footnotes are rendered. Destructive actions retain their distinct button styling; deletion and unassignment remain distinct in the action wording.
 
-The review is derived from the exact guarded mutation, not just a button label. It shows named records, before/after seats and dimensions, affected-record counts, and distinct warnings for deleting records versus releasing seats. Bulk reviews paginate all records, without truncating the underlying action. Values render as React text, not HTML.
+The dialog is at most 360px wide, with compact spacing, wrapping names and 44px button targets. The native modal retains focus containment, initial Cancel focus, Escape cancellation, pointer-lock release and focus restoration. An actual validation error is the only extra text and disables Confirm until the action is reviewed again.
 
-## Confirmation and cancellation
+This is a presentation change only. The complete structured summary and guarded mutation still exist internally. Confirmation applies the exact reviewed operation once after revalidating before-values, history and full details. Nothing is added to the layout, history, recovery journal or save queue before approval. Cancel keeps parent forms and selections. Previously confirmed saves continue through the nonblocking queue.
 
-Nothing from the proposed action is added to the document, history, recovery journal or write queue before Confirm. The existing form remains mounted beneath the native modal. Cancel, Escape and the close button leave the action unapplied and retain form entries/selections. Selection changes, modal closing and next-seat advancement happen only after confirmation.
+Furniture and guest edits, seating/swaps, bulk actions, CSV import, reference-layout restoration, undo/redo, manual reload and manual retry retain their existing confirmation coverage. Automatic reads and recovery of previously confirmed edits do not reprompt. No server APIs, credentials, sheet data, invitation/RSVP behavior or workflow gates are changed.
 
-Confirm immediately applies the reviewed change locally, then the existing sequential queue syncs it. Users can review and confirm the next edit while earlier saves are still pending. Cancelling a new action does not cancel previously confirmed saves. Duplicate/stale confirmation events are ignored.
-
-The provider revalidates the frozen mutation against the latest layout and history. It never reruns the original updater, which could generate new IDs or choose different seats. Unrelated changes can be retained, but changed reviewed details or conflicting history produce a visible error requiring cancellation and a fresh review. Existing server conflict checks remain authoritative.
-
-## Connection actions
-
-Manual Reload (including retrying the initial connection) has an explicitly read-only confirmation. Manual Retry summarizes the ordered pending saves and reuses their original operation IDs. Automatic startup/focus/periodic reads and recovery of already-confirmed queue entries do not reprompt. Refreshes defer while a review is open; the synchronous gate prevents a stale React render from blocking the confirmed reload.
-
-## Accessibility and boundaries
-
-The native dialog provides a modal top layer above guest/seat editors, labelled/described headings, initial Cancel focus, Escape handling, and focus restoration. The body scrolls independently with pinned actions, touch-sized buttons and wrapping long/Thai names. No new dependencies, server APIs, Google Sheet tabs, credentials, invitation/RSVP flows or deployment workflows are introduced.
-
-Tests cover summary generation, one-time approval, cancel/no-write behavior, save acknowledgement races, revalidation, read-only refresh, retries, and preserved nonblocking saves. Browser regressions explicitly approve actions rather than bypassing the confirmation gate.
+Regression tests cover action-only rendering, named seat moves/swaps, bulk actions, Unicode, conditional errors, safe cancellation, unchanged full-summary validation, queued saving and compact desktop/mobile/landscape dimensions.

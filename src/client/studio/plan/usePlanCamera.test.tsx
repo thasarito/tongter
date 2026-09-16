@@ -8,7 +8,7 @@ import { clone } from "../model/schema";
 import { StudioProvider, useStudio } from "../state/StudioProvider";
 import { usePlanCamera } from "./usePlanCamera";
 
-const approve = () => fireEvent.click(screen.getByRole("button", { name: "Confirm & save" }));
+const approve = () => fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 const event = (x: number, y: number) => ({
   button: 0, pointerId: 1, clientX: x, clientY: y, stopPropagation() {},
 } as ReactPointerEvent<SVGSVGElement>);
