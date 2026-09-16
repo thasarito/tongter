@@ -1,112 +1,107 @@
 # Native React Glass House Studio
 
-## Entry point and migration
+## Entry point and source of truth
 
-Open `/admin/studio` from the admin dashboard. The editor uses the existing signed administrator session. The React route and its Three.js scene are independently lazy-loaded; there is no iframe, injected script bundle or window-global seating state.
+Open `/admin/studio` using the existing signed administrator session. This is a native React/Vite route with a separately lazy-loaded R3F scene, not an iframe or injected standalone script. PR #8 is the native alternative to iframe PR #7; do not merge both implementations.
 
-Export **Layout JSON** from the latest standalone v3/v4/v5 HTML, then use **Files → Import standalone / studio layout JSON** here. Format version 3 carries the full guest roster, exact seat numbers, furniture and original-source references. Legacy version 2 per-table name arrays are also supported, including empty-seat gaps. Invalid/duplicate assignments fail without partial writes.
+The current StudioMeta, StudioGuests and StudioObjects tabs in Google Sheets provide the layout. The studio waits for a valid sheet response rather than flashing or uploading a previous browser draft. Exact `guestList` table IDs and seat numbers are authoritative; old per-table name caches are derived, not an independent seating source. Original-source table/seat references remain historical.
 
-The public repository contains the twenty-table venue geometry and synthetic tests, **not the private reception roster**. New drafts start without guests. Local storage uses `tongter:glass-house-react:v1`; JSON is the durable backup when changing browsers or moving from the earlier standalone/iframe copy.
-
-This PR is the native alternative to iframe PR #7. Do not merge both route implementations.
-
-## Administrator password
-
-The current explicitly requested preview password is verified against `ADMIN_PASSPHRASE_HASH` in the Worker configuration. The stored verifier uses PBKDF2-SHA-256, a 16-byte salt, 100,000 iterations and a 32-byte result. The browser sends the entered password to the server over HTTPS; it never receives a verifier as a substitute login token.
-
-A nonempty `ADMIN_PASSPHRASE_HASH` takes precedence over `ADMIN_PASSPHRASE`. A malformed hash fails closed rather than falling back to the old password. Existing development environments that configure only the plaintext binding remain compatible. Unit tests cover valid/invalid passwords, hash replay, precedence and missing signing secrets.
-
-`ADMIN_SESSION_SECRET` remains a separate **private Cloudflare secret**. A missing signing key cannot issue a session. Login cookies remain HttpOnly, Secure and SameSite=Lax. The public verifier must never be reused as a signing key.
-
-**The selected three-digit password is weak even when hashed.** Before allowing sensitive live guest data or production use, replace it with a strong password and a newly generated salted verifier. Do not put a plaintext password or signing secret into client code or a public configuration file. The test environment retains its own synthetic password and signing key.
+User-facing JSON import/export has been removed. The earlier standalone-to-JSON migration instructions are obsolete for the live sheet-connected studio. Internal API messages still use JSON. No private reception roster or invitation tokens are bundled in the repository.
 
 ## Component map
 
 ```text
-routes/AdminStudioRoute.tsx         signed-session guard and sign-in
-studio/GlassHouseStudio.tsx         providers, lazy scene, modal composition
-  state/StudioProvider.tsx          authoritative layout, history and autosave
-  interaction/GuestDragProvider.tsx mouse/touch/pen gestures and exact-seat drops
+routes/AdminStudioRoute.tsx          signed-session guard and login
+studio/GlassHouseStudio.tsx          provider tree, lazy scene, modal composition
+  state/StudioProvider.tsx           optimistic edits, guarded undo, pending-save recovery
+  state/SheetConnection.tsx          authoritative loading, refresh, status and retry
+  state/sheet-source.ts              private GET/POST transport
+  interaction/GuestDragProvider.tsx  mouse/touch/pen drops and bounded feedback
   components/
-    StudioToolbar.tsx              views, JSON backup, guest file import/export
-    StudioSidebar.tsx              layers, table palette, spatial diagnostics
-    GuestRoster.tsx                search/filter, source groups, bulk assignment
-    GuestForm.tsx                  names, RSVP, dietary/notes, flags and seating
-    SeatEditor.tsx                 exact-seat selection, swap/replace and roster
-    ObjectInspector.tsx            size, position, rotation, locks and deletion
-    ImportDialog.tsx               merge/replace preview against current state
-    Modal.tsx                      native dialog lifecycle
+    StudioToolbar.tsx               view selection, CSV and printable exports
+    StudioSidebar.tsx               layers, tables, palette and diagnostics
+    GuestRoster.tsx                 search, groups and bulk assignment
+    GuestForm.tsx                   names, flags, notes, dietary and seats
+    SeatEditor.tsx                  exact-seat selection, swap/replace and roster
+    ObjectInspector.tsx             dimensions, locks, position and deletion
+    ImportDialog.tsx                CSV preview before a confirmed live save
   plan/
-    FloorPlan.tsx                  declarative SVG and image export
-    PlanFurniture.tsx              table/zone geometry and selectable chairs
-    GuestNameLabels.tsx            name-only badges centered on assigned seats
-    usePlanCamera.ts               pan, pinch, zoom and furniture dragging
+    FloorPlan.tsx                   declarative SVG and visual exports
+    PlanFurniture.tsx               shared geometry, tables and chairs
+    GuestNameLabels.tsx             name-only labels anchored to seats
+    usePlanCamera.ts                pan, pinch, zoom and furniture dragging
   scene/
-    VenueScene.tsx                 R3F Canvas, lighting and walk controls
-    VenueShell.tsx                 floor, glazing, barrel vault, ribs and garden
-    BanquetTable.tsx               cloths, instanced chairs and occupancy colors
-    EventZone.tsx                  stage, aisle, band, bar, buffet and dance floor
-    InstancedBoxes.tsx             batched geometry and instance-seat mapping
-    SceneControls.tsx              drei OrbitControls, ray picking and shadows
-    WalkController.tsx             camera frame loop and keyboard/touch lifecycle
-    walk-motion.ts                 pure time-based movement and boundary sliding
-    SeatLabels.tsx                 centered drei Html names above real chairs
-    SceneErrorBoundary.tsx         safe return to the SVG editor on WebGL failure
+    VenueScene.tsx                  R3F Canvas and controls
+    VenueShell.tsx                  floor, glazing, vault, steel and garden
+    BanquetTable.tsx                cloths, instanced chairs and occupancy colors
+    EventZone.tsx                   stage, band, bar, aisles and other zones
+    InstancedBoxes.tsx              batched meshes and exact-seat picking
+    SceneControls.tsx               drei controls and picking
+    WalkController.tsx              continuous movement and input lifecycle
+    walk-motion.ts                  frame-time independent motion
+    SeatLabels.tsx                  seat-centered drei Html guest names
+    SceneErrorBoundary.tsx          return to SVG on graphics failure
   model/
-    schema.ts                      validated layout/guest types and normalization
-    geometry.ts                    shared metre-space venue and chair geometry
-    defaults.ts                    venue geometry only; no private roster
-    commands.ts                    atomic moves, swaps, replacement and grouping
-    labels.ts                      full-name wrapping and exact seat anchors
-    exchange.ts                    legacy/current imports and reversible safe CSV
-    printing.tsx                   SVG/PNG and escaped printable seating HTML
+    schema.ts                       normalized typed layout and guest validation
+    geometry.ts                     shared metre-based room and chair positions
+    defaults.ts                     reference geometry only
+    commands.ts                     atomic seating, grouping and guest changes
+    labels.ts                       wrapping and fixed seat anchors
+    exchange.ts                     CSV and retained internal compatibility helpers
+    printing.tsx                    SVG/PNG and printable seating HTML
+shared/studio-mutations.ts           field-aware before/after guards and inverse edits
+worker/routes/studio-write.ts        authenticated, same-origin mutation boundary
+worker/services/studio-gateway.ts    targeted Google cell batches and receipts
+worker/services/studio-writer.ts     conflict checks, idempotency and readback
+worker/studio-coordinator.ts         private per-spreadsheet Durable Object queue
 ```
 
-React, fiber, drei and three use the repository's existing dependency versions. SVG and R3F read the same `StudioLayout`, so a seat change cannot create separate 2D/3D seating records.
+React, fiber, drei and three keep the repository's existing dependencies. All views consume the same normalized layout.
 
-## Name labels and seating
+## Seating, drag feedback and names
 
-**Current design:** assigned guest labels sit directly on their chairs and show the full guest name only. There are no visible seat-number prefixes, leader lines, fanned side columns or distant overflow rails. The detailed SVG map paints labels above the chair geometry; the 3D view uses camera-facing `Html` anchored immediately above each occupied chair. Long names wrap.
+Drag an assigned chair/name to an exact seat. A seated guest dropped on an occupied chair swaps both people. Drop a roster group onto a table for first-free assignment; groups that do not fit fail as a whole. An unassigned guest cannot silently displace an occupant: use the seat editor's replacement confirmation. Reserve/declined guests must be activated first. Deleting a table unassigns its guests rather than deleting their records.
 
-Exact seat numbers still exist in import/export data, accessibility labels, empty-seat controls and the detailed roster. They are needed to preserve assignments and distinguish duplicate guest names. An occupied chair's visible number is suppressed while its guest name is shown. Use the Names toggle to show/hide the overlay without changing assignments.
+Assigned labels show only names, centered directly over their seats. Exact numbers remain in data, accessible labels and empty-chair controls. Fixed seat anchoring supersedes the earlier displaced callout layout: zoom or open a table to read dense arrangements.
 
-Fixed on-seat positioning intentionally supersedes the earlier collision-avoiding callout layout. A dense whole-room view can have crowded names: zoom or open a table to read them, rather than moving labels away from their seats.
+SVG coordinates are metres, not CSS pixels. Drop/focus feedback therefore uses `vector-effect: non-scaling-stroke` with a 2px stroke on the actual shape, never an SVG CSS outline. Guest pointer handlers suppress native text selection and drag-image feedback; keyboard activation remains available. The custom ghost has bounded screen-pixel dimensions.
 
-- Drag a chair or name to move one person; a roster grip can move a bulk selection.
-- Drop on a table for the next free seat, or on a specific chair for its exact seat.
-- A seated guest dropped onto an occupied seat swaps both exact assignments.
-- An unassigned guest cannot silently displace an occupant. Use confirmed replacement in the seat editor; the previous occupant returns to Unassigned and is not deleted.
-- Reserve/declined guests must be activated first. Geometry locks do not lock the guest list.
-- Group moves/distribution are atomic; over-capacity and invalid operations leave prior assignments unchanged.
-- Deleting a table unassigns its occupants. Guest and geometry changes share Undo/Redo.
+## Automatic saving and conflicts
 
-## Geometry and walking
+A completed edit creates one guarded operation, not requests for every pointer movement. It is shown optimistically while Saving is visible. Other mutations pause until acknowledgement; camera movement and browsing remain available. Unrelated remote fields are merged. A stale edit to the same guest, destination seat, capacity or removed record is rejected and the authoritative sheet state is shown.
 
-The reference datum remains 27.20 × 11.25 m with three curved bays. Roof details, 3.5 m eaves, 7.5 m ridge and furniture spacing are interpreted, not survey-grade. Spatial warnings are not venue capacity, accessibility or fire-egress approval.
+Undo/redo submits a guarded inverse operation against the current sheet, not an old whole-layout snapshot. Pending operations survive reload in local storage when available. Retry uses the same operation ID and checks the receipt before applying anything, preventing a lost response from causing a second swap. On mobile, Retry save and Reload sheet remain visible.
 
-Walking is frame-time based, with acceleration/deceleration, normalized diagonals, capped long frames, drag-to-look, optional pointer capture, Shift pace and a touch direction pad. Eye height is 1.67 m without head bob. Window blur, hidden documents, dialogs, text entry and view changes stop held movement. Boundary checks use the approximate venue footprint, not furniture collision or real accessibility clearances.
+The main application binds to the separately deployed private `warissara-studio-writer`. One durable coordinator serializes application writes per spreadsheet. Both sides of a swap and its receipt share one Google atomic batch. Only changed managed Studio cells are written. Legacy Guests, Groups, invitation tokens and RSVP history are never written by this path.
 
-## Site-roster boundary
+Native spreadsheet collaborators do not use the application queue. Before-value checks and readback detect many conflicts, but there is no database-style isolation against a simultaneous native edit or row reorder. Avoid sorting source rows or editing the same cells while an application save is in progress.
 
-`GET /api/admin/studio/guests` requires the existing signed-cookie middleware and returns `Cache-Control: no-store`. Its DTO allowlists names, side/group, RSVP state, dietary text and original table/seat references. Invitation tokens, group tokens and RSVP messages are excluded.
+See [studio-google-sheet-source.md](studio-google-sheet-source.md) for protocol, recovery and deployment details.
 
-Site import is an explicit preview. The DTO omits current `tableId`/`seatNumber`, so merging an updated RSVP or name preserves a deliberate draft placement. Live site's ten-table seats remain source references, never guessed into the twenty-table studio draft. There is **no studio publish/write endpoint to Google Sheets**.
+## Files and privacy
 
-## Files and native-app differences
+Guest CSV import previews its changes and requires confirmation before saving to the live Studio tabs. Merge preserves other records; Replace can delete omitted guest records, with explicit confirmation. Stable IDs distinguish people with duplicate names. CSV formula-like values use the reversible safety convention implemented in the exchange model; the Google gateway writes literal string cells, not formulas.
 
-- **Save JSON** backs up the complete editable project.
-- Guest CSV/JSON merges by stable ID or replaces the roster without moving furniture. Whole-layout replacement has separate confirmation.
-- In CSV, populated `table_id` is canonical; `table` is the label fallback. Edit consistently, or remove the ID column to use labels. Clear both current table references plus seat to unassign. Source columns are historical references, not assignment commands.
-- Formula-like CSV text uses the reversible `apostrophe-v1` marker; JSON is the preferred lossless interchange.
-- SVG/PNG and printable seating HTML remain available. Printable HTML is a seating list, not a second interactive copy of the React app.
-- This change does not add service-worker caching or first-load offline routing. Once loaded, guest editing and the SVG plan do not need live Sheets requests.
+CSV, SVG, PNG and printable HTML exports remain. Printable HTML is a seating list, not another interactive application. Exported names and notes are private information. Browser pending operations may also contain private guest changes; use a trusted device.
 
-All exported project files and images containing names are private guest information and should be shared accordingly.
+The authenticated legacy `/api/admin/studio/guests` DTO remains for compatibility and excludes invitation tokens/messages. It is no longer offered as a JSON import workflow in this studio.
 
-## CI and deployment
+## Authentication
 
-The user explicitly enabled CI and PR deployment for this update. The earlier review-only / `[skip ci]` constraint is superseded. New commits run the normal **Verify and deploy** workflow: lint, TypeScript, unit/model tests, venue/logic/view/walk/look checks, production build, and Playwright browser tests.
+The requested administrator credential is verified server-side using `ADMIN_PASSPHRASE_HASH`: PBKDF2-SHA-256, 16-byte salt, 100,000 iterations, 32-byte result. A configured hash overrides the legacy plaintext binding and malformed hashes fail closed. `ADMIN_SESSION_SECRET` is a separate private secret. Cookies remain HttpOnly, Secure and SameSite=Lax. The selected three-digit password is weak even when hashed and should be rotated before broader exposure.
 
-New browser coverage exercises the authenticated studio, synthetic layout import, seat-centered name labels, pointer/touch swaps, undo, persistence, and the real R3F scene. The password verifier has route-level tests independent of the legacy development credential.
+Mutations require the existing signed session and same-origin checks. Sheet credentials and IDs come only from server bindings. The internal coordinator is not publicly routed, and credentials are never stored in its journal or exposed to the browser. Private responses are no-store, including forwarded binding responses.
 
-Cloudflare **PR preview** uploads remain gated on successful verification. This update does not merge PR #8 or deploy its branch directly to the production route. The latest Actions run and the bot's PR preview comment are the authoritative completion records; a green unit-test subset alone does not establish deployment success.
+## Geometry and walkthrough
+
+The reference room remains 27.20 × 11.25 m with three curved bays, interpreted 3.5 m eaves and a 7.5 m ridge. These dimensions and spatial warnings are not a survey or accessibility/fire-egress approval.
+
+Walking uses frame time, acceleration/deceleration, normalized diagonals, capped long frames, drag-to-look, optional pointer capture, Shift pace and a touch pad. Eye height is 1.67 m without head bob. Blur, hidden documents, dialogs, text inputs and view changes stop movement. Boundary checks are approximate and do not certify safe real-world paths.
+
+## Verification and deployment
+
+Normal CI is enabled: lint, TypeScript, all unit/model/worker tests, existing venue/logic/view/walk/look checks, production build, private writer dry-run bundle and desktop/mobile Playwright. Browser tests include native pointer/touch swaps, bounded SVG feedback, conflict rejection, lost-response retry, guarded undo, sheet-authoritative reload and real WebGL rendered pixels.
+
+Only after successful verification does the workflow deploy the internal coordinator and update the PR preview. The main production website is not deployed on PR events. PR #8 remains unmerged unless explicitly requested otherwise.
+
+Live verification compares the actual authenticated Google Sheet response to rendered names, seats, capacities and geometry on desktop/mobile. The writer is probed with an empty operation that creates no receipt and changes no guest cells. Real mutation tests use synthetic data. Latest Actions results, not this document, determine the current pass/deployment status.
