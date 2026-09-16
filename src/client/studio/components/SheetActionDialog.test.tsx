@@ -24,8 +24,8 @@ describe("compact sheet confirmation", () => {
     expect(dialog.textContent).toBe("Move Alice to Table 2 · Seat 3CancelConfirm");
     expect(within(dialog).getAllByRole("button")).toHaveLength(2);
     expect(dialog.querySelector("dl, nav, table, small")).toBeNull();
-    expect(screen.getByRole("button", { name: "Cancel", exact: true })).toHaveFocus();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm", exact: true }));
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     expect(onConfirm).toHaveBeenCalledExactlyOnceWith("review-1");
   });
 
@@ -47,12 +47,12 @@ describe("compact sheet confirmation", () => {
     summary.warnings = ["120 guest record(s) will be removed from the live roster, not just unassigned."];
     const { dialog } = mount(summary);
     expect(dialog.textContent).toBe("Remove 120 guestsCancelConfirm");
-    expect(screen.getByRole("button", { name: "Confirm", exact: true })).toHaveClass("danger");
+    expect(screen.getByRole("button", { name: "Confirm" })).toHaveClass("danger");
   });
 
   it("Cancel and Escape still cancel the same review without saving", () => {
     const { dialog, onConfirm, onCancel } = mount();
-    fireEvent.click(screen.getByRole("button", { name: "Cancel", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onCancel).toHaveBeenCalledWith("review-1");
     fireEvent(dialog, new Event("cancel", { cancelable: true, bubbles: true }));
     expect(onCancel).toHaveBeenCalledTimes(2);
@@ -64,7 +64,7 @@ describe("compact sheet confirmation", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("The seat changed.");
     expect(screen.getByRole("alert")).toHaveTextContent("Cancel and try again.");
     expect(dialog).toHaveAccessibleDescription("The seat changed. Cancel and try again.");
-    const confirm = screen.getByRole("button", { name: "Confirm", exact: true });
+    const confirm = screen.getByRole("button", { name: "Confirm" });
     expect(confirm).toBeDisabled(); fireEvent.click(confirm); expect(onConfirm).not.toHaveBeenCalled();
   });
 
