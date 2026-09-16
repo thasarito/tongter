@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup, fireEvent, renderHook, screen } from "@testing-library/react";
 import { applyMutation, type StudioMutation } from "@/shared/studio-mutations";
 import type { StudioSheetSnapshot } from "@/shared/studio-sheet";
 import { moveGuests } from "../model/commands";
@@ -8,6 +8,7 @@ import { clone, normalizeLayout, type StudioLayout } from "../model/schema";
 import { StudioProvider, useStudio } from "./StudioProvider";
 import { SheetSaveError } from "./sheet-source";
 
+const approve = (name = "Confirm & save") => fireEvent.click(screen.getByRole("button", { name }));
 const queueKey = "tongter:studio:pending-v2";
 function connection() {
   let layout = normalizeLayout({
@@ -58,6 +59,7 @@ function mount(writer: ReturnType<typeof connection>) {
       act(() => view.result.current.commit("Object moved", layout => ({
         ...layout, items: layout.items.map(item => item.id === id ? { ...item, x } : item),
       })));
+      approve();
     },
     x(id: string) { return view.result.current.layout.items.find(item => item.id === id)!.x; },
   };
@@ -110,9 +112,11 @@ describe("nonblocking sheet saves", () => {
     view.move("table-1", 1);
     expect(view.result.current.canUndo).toBe(true);
     act(() => view.result.current.undo());
+    approve();
     expect(view.x("table-1")).toBe(0);
     expect(view.result.current.canRedo).toBe(true);
     act(() => view.result.current.redo());
+    approve();
     expect(view.x("table-1")).toBe(1);
     await writer.confirm(0);
     await writer.confirm(1);
@@ -124,7 +128,9 @@ describe("nonblocking sheet saves", () => {
   it("queues a seat swap followed by another move without losing either guest", async () => {
     const writer = connection(), view = mount(writer);
     act(() => view.result.current.commit("Swap", layout => moveGuests(layout, ["synthetic-1"], { tableId: "table-2", seatNumber: 1 })));
+    approve();
     act(() => view.result.current.commit("Move again", layout => moveGuests(layout, ["synthetic-1"], { tableId: "table-3", seatNumber: 1 })));
+    approve();
     await writer.confirm(0);
     expect(view.result.current.layout.guestList[0].tableId).toBe("table-3");
     await writer.confirm(1);
@@ -141,6 +147,7 @@ describe("nonblocking sheet saves", () => {
     expect(writer.requests).toHaveLength(1);
     expect(JSON.parse(localStorage.getItem(queueKey)!).operations).toHaveLength(2);
     act(() => view.result.current.retry());
+    approve("Confirm retry");
     expect(writer.requests[1].operation).toEqual(writer.requests[0].operation);
     await writer.confirm(1);
     expect(view.x("table-2")).toBe(2);
@@ -220,5 +227,101 @@ describe("nonblocking sheet saves", () => {
     act(() => view.result.current.hydrate(stale.layout));
     expect(view.x("table-2")).toBe(2);
     await writer.confirm(1);
+  });
+});
+
+describe("sheet action review", () => {
+  const requestMove = (view: ReturnType<typeof mount>, id = "table-2", x = 2) => {
+    act(() => view.result.current.commit("Object moved", layout => ({
+      ...layout, items: layout.items.map(item => item.id === id ? { ...item, x } : item),
+    })));
+  };
+  it("shows an exact review without changing the document, history or save journal", () => {
+    const writer = connection(), view = mount(writer), before = view.result.current.layout;
+    requestMove(view);
+    expect(screen.getByRole("dialog", { name: "Move Table 2" })).toHaveTextContent("X 2 m");
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    expect(view.result.current.layout).toBe(before);
+    expect(view.result.current.canUndo).toBe(false);
+    expect(writer.requests).toHaveLength(0);
+    expect(localStorage.getItem(queueKey)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(view.result.current.layout).toBe(before);
+    expect(writer.requests).toHaveLength(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+  it("does not rerun the updater and defers post-confirm callbacks", () => {
+    const writer = connection(), view = mount(writer);
+    let updates = 0, completed = 0;
+    act(() => view.result.current.commit("Move", layout => {
+      updates++;
+      return { ...layout, items: layout.items.map(item => item.id === "table-1" ? { ...item, x: 3 } : item) };
+    }, () => { completed++; }));
+    expect(updates).toBe(1);
+    expect(completed).toBe(0);
+    approve();
+    expect(updates).toBe(1);
+    expect(completed).toBe(1);
+    expect(writer.requests).toHaveLength(1);
+  });
+  it("Escape and the close button cancel without enqueuing a mutation", () => {
+    const writer = connection(), view = mount(writer);
+    requestMove(view);
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true, bubbles: true }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    requestMove(view);
+    fireEvent.click(screen.getByRole("button", { name: "Close confirmation" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(view.x("table-2")).toBe(0);
+    expect(writer.requests).toHaveLength(0);
+  });
+  it("preserves a review while the previous save finishes, then queues its exact change", async () => {
+    const writer = connection(), view = mount(writer);
+    view.move("table-1", 1);
+    requestMove(view);
+    await writer.confirm(0);
+    expect(screen.getByRole("dialog", { name: "Move Table 2" })).toBeInTheDocument();
+    expect(view.x("table-2")).toBe(0);
+    approve();
+    expect(view.x("table-2")).toBe(2);
+    expect(writer.requests).toHaveLength(2);
+    expect(view.result.current.editable).toBe(true);
+    await writer.confirm(1);
+  });
+  it("keeps unrelated remote edits while confirming the reviewed mutation", () => {
+    const writer = connection(), view = mount(writer);
+    requestMove(view);
+    const newer = clone(view.result.current.layout);
+    newer.guestList[0].name = "Remote rename";
+    act(() => view.result.current.hydrate(newer));
+    approve();
+    expect(view.result.current.layout.guestList[0].name).toBe("Remote rename");
+    expect(view.x("table-2")).toBe(2);
+    expect(writer.requests).toHaveLength(1);
+    expect(writer.requests[0].operation.changes).toHaveLength(1);
+  });
+  it("rejects stale reviewed details instead of silently saving a different action", () => {
+    const writer = connection(), view = mount(writer);
+    requestMove(view);
+    const newer = clone(view.result.current.layout);
+    newer.items[1].x = 9;
+    act(() => view.result.current.hydrate(newer));
+    approve();
+    expect(screen.getByRole("alert")).toHaveTextContent("Nothing from this action was queued");
+    expect(screen.getByRole("button", { name: "Confirm & save" })).toBeDisabled();
+    expect(view.x("table-2")).toBe(9);
+    expect(writer.requests).toHaveLength(0);
+  });
+  it("cancels a reviewed undo without changing existing history", async () => {
+    const writer = connection(), view = mount(writer);
+    view.move("table-1", 1);
+    await writer.confirm(0);
+    act(() => view.result.current.undo());
+    expect(screen.getByRole("dialog")).toHaveTextContent("Undo:");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(view.x("table-1")).toBe(1);
+    expect(view.result.current.canUndo).toBe(true);
+    expect(view.result.current.canRedo).toBe(false);
+    expect(writer.requests).toHaveLength(1);
   });
 });

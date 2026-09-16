@@ -29,7 +29,7 @@ export function GuestDragProvider({children}:{children:ReactNode}){
     function down(e:PointerEvent){
       if(session.current||e.button!==0)return;suppress.current=0;
       const el=e.target instanceof Element?e.target.closest("[data-guest-drag]"):null,id=el?.getAttribute("data-guest-drag");if(!el||!id)return;
-      const state=latest.current;if(!state.editable){e.preventDefault();state.notify("Wait for the sheet save to finish before another move.");return;}
+      const state=latest.current;if(!state.editable){e.preventDefault();state.notify("Finish the current review or sheet connection before another move.");return;}
       const ids=el.hasAttribute("data-roster-drag")&&state.picked.includes(id)?state.picked:[id];if(ids.some(id=>!state.layout.guestList.some(g=>g.id===id)))return;
       // Prevent native SVG text selection, focus rings and browser drag-image feedback.
       // Keyboard activation still follows the existing button/seat handlers.
@@ -51,7 +51,7 @@ export function GuestDragProvider({children}:{children:ReactNode}){
       const s=session.current;if(!s||s.pointerId!==e.pointerId)return;if(!s.active){clear();return;}e.preventDefault();e.stopPropagation();
       if(s.revision!==latest.current.revision){clear(true);return;}
       const target=at(e.clientX,e.clientY),ids=s.ids.slice();clear();if(!target){latest.current.notify("No seat selected. Assignments unchanged.");return;}
-      latest.current.commit("Saving seating to Google Sheets…",layout=>moveGuests(layout,ids,target));latest.current.setPicked([]);
+      latest.current.commit("Update seating",layout=>moveGuests(layout,ids,target),()=>latest.current.setPicked([]));
     }
     const cancel=()=>clear(true),pointerCancel=(e:PointerEvent)=>{if(session.current?.pointerId===e.pointerId)clear(true);};
     const key=(e:KeyboardEvent)=>{if(session.current&&e.key==="Escape"){e.preventDefault();e.stopImmediatePropagation();clear(true);}};

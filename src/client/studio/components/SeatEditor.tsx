@@ -39,10 +39,11 @@ export function SeatEditor({target}:{target:SeatTarget}) {
     if(!chosen||!table)return;
     try{
       const replace=!!current&&!chosen.tableId&&current.id!==chosen.id;
-      if(replace&&!confirm(`${chosen.name} will take seat ${effective}; ${current.name} returns to Unassigned. Neither record is deleted. Continue?`))return;
       const next=replace?replaceSeat(layout,chosen.id,seatTarget):moveGuests(layout,[chosen.id],seatTarget);
-      commit(current?"Seats updated; Undo is available":"Guest assigned",()=>next);setCandidate("");setError("");
-      if(autoNext){const free=seats(table).filter(p=>!occupant(next,{tableId:table.id,seatNumber:p.number}));setNumber((free.find(p=>p.number>effective)||free[0])?.number??effective);}
+      commit(current?"Seats updated; Undo is available":"Guest assigned",()=>next,confirmed=>{
+        setCandidate("");setError("");
+        if(autoNext){const free=seats(table).filter(p=>!occupant(confirmed,{tableId:table.id,seatNumber:p.number}));setNumber((free.find(p=>p.number>effective)||free[0])?.number??effective);}
+      });
     }catch(cause){setError(cause instanceof Error?cause.message:"Unable to assign guest.");}
   }
   return <Modal title={`Around Table ${table.label}`} wide onClose={()=>setModal(null)}>
