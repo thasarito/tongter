@@ -9,19 +9,35 @@ interface Preview {id:string;x:number;z:number}
 interface Gesture {pointer:number;start:Point;item?:StudioItem;origin:Point;camera:Camera;inverse:DOMMatrix}
 interface Pinch {distance:number;anchor:Point;camera:Camera;inverse:DOMMatrix}
 const project=(x:number,y:number,m:DOMMatrix):Point=>{const p=new DOMPoint(x,y).matrixTransform(m);return [p.x,p.y];};
+const dragFields=["kind","shape","x","z","w","d","h","rotation","seats","locked","aisleWidth"] as const;
+const unchangedItem=(before:StudioItem,current:StudioItem|undefined)=>!!current&&dragFields.every(field=>before[field]===current[field]);
 export function usePlanCamera(){
-  const {layout,modal,options,commit,setSelected}=useStudio(),drag=useGuestDrag();
+  const {layout,modal,options,commit,setSelected,editable,notify}=useStudio(),drag=useGuestDrag();
   const svg=useRef<SVGSVGElement>(null),gesture=useRef<Gesture|null>(null),pinch=useRef<Pinch|null>(null),pointers=useRef(new Map<number,Point>()),pending=useRef<Preview|null>(null);
   const [camera,setCamera]=useState<Camera>([-17,-11,34,22]),[preview,setPreview]=useState<Preview|null>(null);
   const cameraRef=useRef<Camera>(camera);
   function updateCamera(next:Camera){cameraRef.current=next;setCamera(next);}
-  function cancel(){gesture.current=null;pinch.current=null;pointers.current.clear();pending.current=null;setPreview(null);}
-  useEffect(()=>{cancel();},[layout,modal]);
+  function cancel(){
+    gesture.current=null;pinch.current=null;pending.current=null;setPreview(null);
+    for(const pointer of pointers.current.keys()){
+      try{if(svg.current?.hasPointerCapture(pointer))svg.current.releasePointerCapture(pointer);}catch{/* the SVG may have unmounted */}
+    }
+    pointers.current.clear();
+  }
+  useEffect(()=>{cancel();},[modal]);
+  useEffect(()=>{
+    const item=gesture.current?.item;
+    // A save acknowledgement or unrelated collaborator edit must not interrupt
+    // the next drag. Only invalidate a changed/deleted/locked drag target.
+    if(item&&!unchangedItem(item,layout.items.find(current=>current.id===item.id)))cancel();
+  },[layout]);
   useEffect(()=>{const blur=()=>cancel();window.addEventListener("blur",blur);return()=>window.removeEventListener("blur",blur);},[]);
   function zoom(factor:number){const [x,z,w,h]=cameraRef.current,next=Math.max(7,Math.min(180,w*factor)),ratio=next/w;updateCamera([x+(w-next)/2,z+(h-h*ratio)/2,next,h*ratio]);}
   useEffect(()=>{const node=svg.current;if(!node)return;const wheel=(e:WheelEvent)=>{e.preventDefault();if(!gesture.current&&!pinch.current)zoom(Math.exp(e.deltaY*.001));};node.addEventListener("wheel",wheel,{passive:false});return()=>node.removeEventListener("wheel",wheel);},[]);
   function begin(e:ReactPointerEvent<SVGElement>,item?:StudioItem){
-    if(e.button!==0||drag.active)return;e.stopPropagation();const matrix=svg.current?.getScreenCTM();if(!matrix)return;
+    if(e.button!==0||drag.active)return;
+    if(item&&!editable){notify("Wait for the sheet connection or session recovery before moving objects.");return;}
+    e.stopPropagation();const matrix=svg.current?.getScreenCTM();if(!matrix)return;
     const inverse=matrix.inverse();pointers.current.set(e.pointerId,[e.clientX,e.clientY]);svg.current?.setPointerCapture(e.pointerId);
     if(pointers.current.size===2){
       gesture.current=null;pending.current=null;setPreview(null);const [a,b]=[...pointers.current.values()];
@@ -50,7 +66,11 @@ export function usePlanCamera(){
     if(svg.current?.hasPointerCapture(e.pointerId))svg.current.releasePointerCapture(e.pointerId);
     if(pinch.current){pinch.current=null;gesture.current=null;pending.current=null;setPreview(null);return;}
     if(!g||g.pointer!==e.pointerId)return;gesture.current=null;pending.current=null;setPreview(null);
-    if(p&&!aborted)commit("Object moved",s=>({...s,items:s.items.map(t=>t.id===p.id?{...t,x:p.x,z:p.z}:t)}));
+    if(p&&!aborted)commit("Object moved",s=>{
+      // Recheck synchronously too: pointerup can arrive before the refresh effect.
+      if(!g.item||!unchangedItem(g.item,s.items.find(item=>item.id===p.id)))throw Error("That object changed during the drag. Its latest position was kept.");
+      return {...s,items:s.items.map(t=>t.id===p.id?{...t,x:p.x,z:p.z}:t)};
+    });
   }
   function fit(labels:LabelBox[]){const x=Math.min(-16,...labels.map(l=>l.x-1)),z=Math.min(-11,...labels.map(l=>l.y-1)),right=Math.max(16,...labels.map(l=>l.x+l.w+1)),bottom=Math.max(10,...labels.map(l=>l.y+l.h+1));updateCamera([x,z,right-x,bottom-z]);}
   return {svg,camera,preview,begin,move,finish,cancel,zoom,fit};
