@@ -6,7 +6,9 @@ type Env=WorkerBindings&{STUDIO_WRITER?:StudioWriterNamespace};
 /** Mounted after session verification; clients cannot choose sheet credentials. */
 export function studioWriteRoutes(){
   return new Hono<{Bindings:WorkerBindings}>()
-    .use("*",async(c,next)=>{c.header("Cache-Control","no-store");await next();})
+    // Apply after next as well: forwarded binding Responses replace Hono's
+    // prepared response and must never drop the private no-store header.
+    .use("*",async(c,next)=>{c.header("Cache-Control","no-store");await next();c.header("Cache-Control","no-store");})
     .post("/mutations",async c=>{
       if((c.req.header("Origin")&&c.req.header("Origin")!==new URL(c.req.url).origin)||c.req.header("Sec-Fetch-Site")==="cross-site")return c.json({error:{code:"FORBIDDEN",message:"Cross-origin writes are not allowed."}},403);
       if(!c.req.header("Content-Type")?.toLowerCase().startsWith("application/json"))return c.json({error:{message:"Expected application/json."}},415);

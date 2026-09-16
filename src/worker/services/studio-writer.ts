@@ -20,10 +20,16 @@ export class StudioWriterEngine {
     if(existing){if(existing.hash!==hash)return json({error:{code:"OPERATION_ID_REUSED",message:"This operation ID belongs to a different edit."}},409);const pending=await this.journal.get();if(pending?.id===operation.id)await this.journal.clear();return json({...((await this.gateway.read()).snapshot),operationId:operation.id,replayed:true});}
     const pending=await this.journal.get();
     if(pending){
+      if(pending.id===operation.id&&pending.hash!==hash)return json({error:{code:"OPERATION_ID_REUSED",message:"This pending operation ID belongs to a different edit."}},409);
       const confirmed=await this.gateway.receipt(pending.id);
       if(confirmed){await this.journal.clear();}
-      else if(pending.id!==operation.id||pending.hash!==hash||this.now()-pending.sentAt<240_000){return json({error:{code:"SAVE_UNCERTAIN",message:"A previous sheet update is still being reconciled. Retry shortly; it will not be applied twice."}},503);}
-      else await this.journal.clear();
+      else if(this.now()-pending.sentAt<240_000){return json({error:{code:"SAVE_UNCERTAIN",message:"A previous sheet update is still being reconciled. Retry shortly; it will not be applied twice."}},503);}
+      else {
+        // Google documents a 180-second processing timeout. After a 240-second
+        // guard and a fresh absent-receipt check, release an abandoned journal.
+        // Re-read and validate all preconditions below, even for a different tab.
+        await this.journal.clear();
+      }
     }
     const read=await this.gateway.read();let next;
     try{next=applyMutation(read.snapshot.layout,operation);}catch(cause){if(cause instanceof StudioConflict)return writeConflict(cause.message,read.snapshot);throw cause;}
