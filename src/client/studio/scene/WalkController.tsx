@@ -7,10 +7,10 @@ import { WalkMotion, type WalkDirection } from "./walk-motion";
 const directions:Record<string,WalkDirection>={KeyW:"forward",KeyS:"back",KeyA:"left",KeyD:"right",ArrowUp:"forward",ArrowDown:"back",ArrowLeft:"left",ArrowRight:"right"};
 const editing=()=>document.activeElement instanceof Element&&!!document.activeElement.closest("input,textarea,select,[contenteditable=true]");
 export function WalkController({motion}:{motion:WalkMotion}){
-  const {camera,gl,invalidate}=useThree(),{modal}=useStudio(),{open}=useStudioChrome();
-  useEffect(()=>{motion.enabled=!modal&&!open;motion.stop();return()=>{motion.stop();};},[motion,modal,open]);
+  const {camera,gl,invalidate}=useThree(),{modal,reviewing}=useStudio(),{open}=useStudioChrome();
+  useEffect(()=>{motion.enabled=!modal&&!open&&!reviewing;motion.stop();return()=>{motion.stop();};},[motion,modal,open,reviewing]);
   useEffect(()=>{
-    const canvas=gl.domElement;canvas.tabIndex=0;canvas.setAttribute("aria-label","Walk inside. Drag to look, use the joystick or hold WASD or arrows to move.");
+    const canvas=gl.domElement;canvas.tabIndex=0;canvas.setAttribute("aria-label","Walk inside. Left joystick moves, right joystick looks. You can also drag to look or hold WASD or arrows to move.");
     if(camera instanceof PerspectiveCamera){camera.fov=68;camera.updateProjectionMatrix();}
     const unsubscribe=motion.subscribe(()=>invalidate());
     const apply=()=>{camera.position.set(motion.x,1.67,motion.z);camera.lookAt(motion.x+Math.sin(motion.yaw)*Math.cos(motion.pitch),1.67+Math.sin(motion.pitch),motion.z+Math.cos(motion.yaw)*Math.cos(motion.pitch));invalidate();};apply();

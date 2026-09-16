@@ -1,0 +1,17 @@
+/* Higher specificity keeps BOTH sticks above the measured dock in landscape too.
+   These rules are scoped to the immersive studio; the scene never loses space. */
+.studio-immersive.studio-dock-layout .studio-joystick-wrap {
+  left: max(18px, calc(env(safe-area-inset-left, 0px) + 12px));
+  bottom: calc(var(--studio-dock-height) + var(--studio-dock-gap) + 14px);
+}
+.studio-immersive.studio-dock-layout .studio-joystick-wrap[data-mode="look"] {
+  left: auto;
+  right: max(18px, calc(env(safe-area-inset-right, 0px) + 12px));
+}
+.studio-immersive.studio-dock-layout .studio-joystick-wrap > small {
+  letter-spacing: 1.4px;
+  font-weight: 600;
+}
+@media (max-width: 340px) {
+  .studio-immersive.studio-dock-layout .studio-joystick { width: 112px; height: 112px; }
+}

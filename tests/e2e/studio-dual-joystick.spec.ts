@@ -1,7 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { normalizeLayout } from "../../src/client/studio/model/schema";
 
-test.use({ launchOptions: { args: ["--enable-unsafe-swiftshader"] } });
+// Use direct WebTouch injection so touchEnd can release a specified contact.
+test.use({ launchOptions: { args: ["--enable-unsafe-swiftshader", "--disable-features=SyntheticPointerActions"] } });
 test.describe.configure({ timeout: 60_000 });
 const moveStick = (page: Page) => page.getByRole("group", { name: "Walk joystick", exact: true });
 const lookStick = (page: Page) => page.getByRole("group", { name: "Look joystick", exact: true });
@@ -101,18 +102,19 @@ test("two fingers move and look independently and either can release first", asy
   const moving = { ...left, y: left.y - 34 }, looking = { ...right, x: right.x + 30 };
   await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [left] });
   await session.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [moving] });
-  await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [moving, right] });
+  await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [right] });
   await session.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [moving, looking] });
   await expect(moveStick(page)).toHaveAttribute("data-active", "true"); await expect(lookStick(page)).toHaveAttribute("data-active", "true");
   const both = await frame(page); await expect.poll(() => frame(page), { timeout: 15_000 }).not.toBe(both);
+  // Direct WebTouch touchEnd lists ENDED contacts, not the remaining contacts.
   // End only the right finger. The left must retain pointer capture and movement.
-  await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [moving] });
+  await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [looking] });
   await neutral(lookStick(page)); await expect(moveStick(page)).toHaveAttribute("data-active", "true");
   const walking = await frame(page); await expect.poll(() => frame(page), { timeout: 15_000 }).not.toBe(walking);
   // Reacquire the look stick, then release only movement.
-  await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [moving, right] });
+  await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [right] });
   await session.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [moving, looking] });
-  await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [looking] });
+  await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [moving] });
   await neutral(moveStick(page)); await expect(lookStick(page)).toHaveAttribute("data-active", "true");
   const turning = await frame(page); await expect.poll(() => frame(page), { timeout: 15_000 }).not.toBe(turning);
   await session.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] }); await session.detach();
