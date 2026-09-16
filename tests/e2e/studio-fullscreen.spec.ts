@@ -2,6 +2,9 @@ import { expect, test, type Page } from "@playwright/test";
 import { normalizeLayout } from "../../src/client/studio/model/schema";
 
 test.use({ launchOptions: { args: ["--enable-unsafe-swiftshader"] } });
+// Software WebGL on the two-core runner needs more time than normal UI tests.
+// Keep every gesture/geometry assertion; do not replace the Canvas with a stub.
+test.describe.configure({timeout:60_000});
 async function open(page: Page) {
   const layout = normalizeLayout({version:3,title:"Synthetic mobile scene",units:"metres",items:[{id:"table-1",kind:"table",shape:"oval",label:"1",x:0,z:0,w:2,d:1.2,h:.76,rotation:0,seats:10,locked:false}],guestList:[{id:"mobile-alice",name:"Alice",tableId:"table-1",seatNumber:1},{id:"mobile-thai",name:"แขกทดสอบชื่อยาวสำหรับมือถือ",tableId:"table-1",seatNumber:6},...Array.from({length:45},(_,i)=>({id:`synthetic-${i}`,name:`Synthetic guest ${i}`}))]});
   const writes:string[]=[];
@@ -21,7 +24,14 @@ const viewportBounds=async(page:Page)=>{
   expect(bounds!.x).toBeLessThanOrEqual(1);expect(bounds!.y).toBeLessThanOrEqual(1);
   expect(bounds!.width).toBeGreaterThanOrEqual(screen.width-2);expect(bounds!.height).toBeGreaterThanOrEqual(screen.height-2);
 };
-const frame=(page:Page)=>page.locator(".studio-three-view canvas").evaluate((canvas:HTMLCanvasElement)=>canvas.toDataURL());
+// A grid of real rendered pixels detects camera motion without repeatedly encoding
+// multi-megabyte PNGs during a held gesture on a software-rendered CI browser.
+const frame=(page:Page)=>page.locator(".studio-three-view canvas").evaluate((canvas:HTMLCanvasElement)=>{
+  const gl=canvas.getContext("webgl2");if(!gl||gl.isContextLost())throw Error("An active WebGL renderer is required");
+  const pixel=new Uint8Array(4),samples:number[]=[];
+  for(const x of [.1,.2,.35,.5,.65,.8,.9])for(const y of [.15,.3,.45,.6,.75,.9]){gl.readPixels(Math.floor(x*canvas.width),Math.floor(y*canvas.height),1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);samples.push(...pixel);}
+  return samples.join(",");
+});
 
 test("scene fills the viewport rather than sharing a scrolling page with tool panels",async({page})=>{
   await open(page);await viewportBounds(page);
@@ -52,9 +62,9 @@ test("guest sheet is independently scrollable and never resizes the scene",async
 test("scene touch gestures orbit without scrolling or changing assignments",async({page,isMobile})=>{
   const writes=await open(page);const screen=page.viewportSize()!,start={x:screen.width*.76,y:screen.height*.53},end={x:screen.width*.82,y:screen.height*.65};
   const before=await frame(page);
-  if(isMobile){const session=await page.context().newCDPSession(page);await session.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[start]});for(let i=1;i<=12;i++)await session.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:start.x+(end.x-start.x)*i/12,y:start.y+(end.y-start.y)*i/12}]});await session.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});await session.detach();}
-  else{await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(end.x,end.y,{steps:12});await page.mouse.up();}
-  await expect.poll(()=>frame(page)).not.toBe(before);
+  if(isMobile){const session=await page.context().newCDPSession(page);await session.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[start]});for(let i=1;i<=8;i++)await session.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:start.x+(end.x-start.x)*i/8,y:start.y+(end.y-start.y)*i/8}]});await session.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});await session.detach();}
+  else{await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(end.x,end.y,{steps:8});await page.mouse.up();}
+  await expect.poll(()=>frame(page),{timeout:15_000}).not.toBe(before);
   expect(await page.evaluate(()=>({x:scrollX,y:scrollY}))).toEqual({x:0,y:0});expect(writes).toHaveLength(0);
 });
 
@@ -76,11 +86,11 @@ test("joystick moves while a second finger looks, then cancels cleanly",async({p
   if(isMobile){
     const session=await page.context().newCDPSession(page);await session.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{...start,id:1}]});await session.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{...move,id:1}]});
     const look={x:screen.width*.72,y:screen.height*.46,id:2};await session.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{...move,id:1},look]});
-    for(let i=1;i<=10;i++)await session.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{...move,id:1},{x:look.x+i*4,y:look.y+i,id:2}]});
-    await expect(stick).toHaveAttribute("data-active","true");await expect.poll(()=>frame(page)).not.toBe(before);
+    for(let i=1;i<=4;i++)await session.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{...move,id:1},{x:look.x+i*10,y:look.y+i*2.5,id:2}]});
+    await expect(stick).toHaveAttribute("data-active","true");await expect.poll(()=>frame(page),{timeout:15_000}).not.toBe(before);
     await session.send("Input.dispatchTouchEvent",{type:"touchCancel",touchPoints:[]});await session.detach();
   }else{
-    await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(move.x,move.y,{steps:8});await expect(stick).toHaveAttribute("data-active","true");await expect.poll(()=>frame(page)).not.toBe(before);await page.mouse.up();
+    await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(move.x,move.y,{steps:2});await expect(stick).toHaveAttribute("data-active","true");await expect.poll(()=>frame(page),{timeout:15_000}).not.toBe(before);await page.mouse.up();
   }
   await expect(stick).toHaveAttribute("data-active","false");expect(await stick.locator('.studio-joystick-knob').evaluate(el=>getComputedStyle(el).transform)).toBe("matrix(1, 0, 0, 1, 0, 0)");
   await page.getByRole("button",{name:"Guests panel",exact:true}).click();await expect(stick).toBeHidden();await page.getByRole("button",{name:"Close planning tools",exact:true}).click();await expect(stick).toBeVisible();await expect(stick).toHaveAttribute("data-active","false");

@@ -39,7 +39,7 @@ function WalkControls({motion,host}:{motion:WalkMotion;host:RefObject<HTMLDivEle
     <WalkJoystick motion={motion} disabled={open||!!modal} resetVersion={resetVersion}/>
     {!open&&<details className="studio-walk-settings" data-studio-ui onToggle={()=>motion.stop()}>
       <summary>Walk settings</summary>
-      <label>Walking pace<select aria-label="Walking pace" defaultValue="1.6" onChange={e=>{motion.speed=Number(e.target.value);}}><option value=".8">Slow stroll</option><option value="1.6">Normal pace</option><option value="2.6">Brisk walk</option></select></label>
+      <label>Walking pace<select aria-label="Walking pace" defaultValue={String(motion.speed)} onChange={e=>{motion.speed=Number(e.target.value);}}><option value="0.8">Slow stroll</option><option value="1.6">Normal pace</option><option value="2.6">Brisk walk</option></select></label>
       <button onClick={()=>{motion.reset();setResetVersion(n=>n+1);}}>Reset position</button>
       <button className="studio-mouse-look" onClick={toggleMouse}>Mouse look</button>
       <small>Hold WASD / arrows. Escape releases mouse capture.</small>
@@ -51,10 +51,10 @@ export default function VenueScene(){
   useEffect(()=>()=>motion.stop(),[motion]);
   function exportImage(){const canvas=host.current?.querySelector("canvas");if(!canvas)return;try{canvas.toBlob(blob=>{if(blob)download(`glass-house-${view}.png`,blob,"image/png");else notify("Unable to export this view.");},"image/png");}catch{notify("Unable to export this view.");}}
   return <div ref={host} data-studio-canvas className="studio-three-view">
-    <Canvas style={{touchAction:"none"}} shadows dpr={[1,1.75]} frameloop={view==="inside"?"always":"demand"} camera={{position:[24,23,29],fov:42,near:.05,far:250}} gl={{antialias:true,preserveDrawingBuffer:true}} fallback={<div className="studio-render-fallback"><p>3D graphics are unavailable in this browser. Your draft is intact.</p><button onClick={()=>setView("plan")}>Return to floor plan</button></div>}>
+    <Canvas style={{touchAction:"none"}} shadows dpr={view==="inside"?[1,1.25]:[1,1.75]} frameloop={view==="inside"?"always":"demand"} camera={{position:[24,23,29],fov:42,near:.05,far:250}} gl={{antialias:true,preserveDrawingBuffer:true,powerPreference:"high-performance"}} fallback={<div className="studio-render-fallback"><p>3D graphics are unavailable in this browser. Your draft is intact.</p><button onClick={()=>setView("plan")}>Return to floor plan</button></div>}>
       <SceneContents motion={motion}/>
     </Canvas>
-    <div className="studio-viewport-actions" data-studio-ui><button onClick={()=>setView("plan")}>Floor plan</button><button onClick={exportImage}>PNG</button></div>
+    <div className="studio-viewport-actions" data-studio-ui><button onClick={exportImage}>PNG</button></div>
     {view==="inside"&&<WalkControls motion={motion} host={host}/>}
   </div>;
 }

@@ -32,6 +32,14 @@ jobs:
         run: pnpm exec wrangler deploy --config wrangler.studio-writer.jsonc --dry-run --outdir /tmp/studio-writer-build
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+      - name: Keep synthetic studio screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-browser-previews-${{ github.run_id }}
+          path: test-results/**/*.png
+          if-no-files-found: ignore
+          retention-days: 7
 
   preview:
     if: >-

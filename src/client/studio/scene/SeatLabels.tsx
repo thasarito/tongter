@@ -5,11 +5,10 @@ import { seats } from "../model/geometry";
 import { occupant } from "../model/schema";
 import { useStudio } from "../state/StudioProvider";
 
-/** Name-only badges remain anchored to the exact chair. On narrow viewports they
- * use bounded screen pixels instead of shrinking to unreadable distance-scaled text.
- * Full names stay in accessible labels and the seat editor. Walk gestures pass through. */
+/** Name-only badges stay on their exact chairs. Compact pixel sizing also covers
+ * short landscape viewports. Full names remain in the seat editor and accessibility tree. */
 export function SeatLabels(){
-  const {layout,setModal,view}=useStudio(),compact=useThree(s=>s.size.width<=760),walking=view==="inside";
+  const {layout,setModal,view}=useStudio(),compact=useThree(s=>s.size.width<=760||s.size.height<=500),walking=view==="inside";
   const entries=useMemo(()=>layout.items.filter(t=>t.kind==="table").flatMap(t=>seats(t).flatMap(p=>{
     const guest=occupant(layout,{tableId:t.id,seatNumber:p.number});
     return guest?[{key:`${t.id}:${p.number}`,table:t,seat:p.number,guest,position:[p.world[0],.75,p.world[1]] as [number,number,number]}]:[];

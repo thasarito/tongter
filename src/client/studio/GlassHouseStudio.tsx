@@ -15,6 +15,7 @@ import { SceneErrorBoundary } from "./scene/SceneErrorBoundary";
 import "./studio.css";
 import "./styles/drag-feedback.css";
 import "./styles/immersive.css";
+import "./styles/touch.css";
 const VenueScene=lazy(()=>import("./scene/VenueScene"));
 interface Props {onUnauthorized:()=>void;loadSiteGuests?:()=>Promise<StudioGuestImport>}
 function DialogHost(){const {modal}=useStudio();if(!modal)return null;if(modal.type==="seat")return <SeatEditor key={modal.target.tableId} target={modal.target}/>;if(modal.type==="guest")return <GuestForm key={modal.id??`new:${modal.target?.tableId}:${modal.target?.seatNumber}`} id={modal.id} target={modal.target}/>;return <ImportDialog data={modal.data}/>;}
