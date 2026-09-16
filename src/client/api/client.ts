@@ -1,4 +1,5 @@
 import type { Lang } from "@/shared/i18n";
+import type { StudioGuestImport } from "@/shared/studio-guests";
 import type {
   AdminView,
   JourneyIntroView,
@@ -62,7 +63,7 @@ export const weddingApi = {
     }>(`/api/rsvp/${encodeURIComponent(token)}?${query(lang)}`),
   seat: (token: string, search: string, lang: Lang) =>
     getJson<{ view: SeatView; debug: boolean }>(
-      `/api/seat/${encodeURIComponent(token)}?${query(lang)}&${search.replace(/^\?/, "")}`,
+      `/api/seat/${encodeURIComponent(token)}` + `?${query(lang)}&${search.replace(/^\?/, "")}`,
     ),
   submitRsvp: (token: string, body: unknown) =>
     postJson<{ ok: true; seatHref: string }>(
@@ -77,4 +78,5 @@ export const weddingApi = {
     getJson<AdminView>(`/api/admin/summary?${query(lang)}`),
   adminQr: (lang: Lang) =>
     getJson<QrSheetView>(`/api/admin/qr?${query(lang)}`),
+  adminStudioGuests: () => getJson<StudioGuestImport>("/api/admin/studio/guests"),
 };
