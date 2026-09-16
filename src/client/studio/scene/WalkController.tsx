@@ -12,6 +12,7 @@ export function WalkController({motion}:{motion:WalkMotion}){
   useEffect(()=>{
     const canvas=gl.domElement;canvas.tabIndex=0;canvas.setAttribute("aria-label","Walk inside. Drag to look, use the joystick or hold WASD or arrows to move.");
     if(camera instanceof PerspectiveCamera){camera.fov=68;camera.updateProjectionMatrix();}
+    const unsubscribe=motion.subscribe(()=>invalidate());
     const apply=()=>{camera.position.set(motion.x,1.67,motion.z);camera.lookAt(motion.x+Math.sin(motion.yaw)*Math.cos(motion.pitch),1.67+Math.sin(motion.pitch),motion.z+Math.cos(motion.yaw)*Math.cos(motion.pitch));invalidate();};apply();
     let pointer:{id:number;x:number;y:number}|null=null;
     const stop=()=>{motion.stop();const id=pointer?.id;pointer=null;if(id!==undefined&&canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);if(document.pointerLockElement===canvas)void document.exitPointerLock();};
@@ -25,11 +26,13 @@ export function WalkController({motion}:{motion:WalkMotion}){
     const lock=()=>{if(document.pointerLockElement!==canvas)motion.stop();};
     document.addEventListener("keydown",down);document.addEventListener("keyup",up);document.addEventListener("mousemove",mouse);document.addEventListener("focusin",focus);document.addEventListener("visibilitychange",visibility);document.addEventListener("pointerlockchange",lock);window.addEventListener("blur",stop);
     canvas.addEventListener("pointerdown",startLook,{passive:false});canvas.addEventListener("pointermove",moveLook,{passive:false});canvas.addEventListener("pointerup",endLook);canvas.addEventListener("pointercancel",endLook);canvas.addEventListener("lostpointercapture",endLook);
-    return()=>{stop();document.removeEventListener("keydown",down);document.removeEventListener("keyup",up);document.removeEventListener("mousemove",mouse);document.removeEventListener("focusin",focus);document.removeEventListener("visibilitychange",visibility);document.removeEventListener("pointerlockchange",lock);window.removeEventListener("blur",stop);canvas.removeEventListener("pointerdown",startLook);canvas.removeEventListener("pointermove",moveLook);canvas.removeEventListener("pointerup",endLook);canvas.removeEventListener("pointercancel",endLook);canvas.removeEventListener("lostpointercapture",endLook);};
+    return()=>{unsubscribe();stop();document.removeEventListener("keydown",down);document.removeEventListener("keyup",up);document.removeEventListener("mousemove",mouse);document.removeEventListener("focusin",focus);document.removeEventListener("visibilitychange",visibility);document.removeEventListener("pointerlockchange",lock);window.removeEventListener("blur",stop);canvas.removeEventListener("pointerdown",startLook);canvas.removeEventListener("pointermove",moveLook);canvas.removeEventListener("pointerup",endLook);canvas.removeEventListener("pointercancel",endLook);canvas.removeEventListener("lostpointercapture",endLook);};
   },[camera,gl,invalidate,motion]);
   useFrame((_,delta)=>{
     if(!motion.enabled||document.hidden||editing()||document.querySelector("dialog[open]")){motion.stop();return;}
     motion.update(delta);camera.position.set(motion.x,1.67,motion.z);camera.lookAt(motion.x+Math.sin(motion.yaw)*Math.cos(motion.pitch),1.67+Math.sin(motion.pitch),motion.z+Math.cos(motion.yaw)*Math.cos(motion.pitch));
+    // Demand mode renders continuously during input/easing, and truly rests afterward.
+    if(motion.moving)invalidate();
   },-1);
   return null;
 }
