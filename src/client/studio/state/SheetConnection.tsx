@@ -35,11 +35,15 @@ export function SheetConnection({children,onUnauthorized,loadSheet=fetchStudioSh
   if(!ready)return <div className="studio-root studio-sheet-loading" role="status"><h1>Loading your live seating sheet…</h1><p>Google Sheets supplies the guests, exact seats and table positions.</p>{error&&<p role="alert">{error}</p>}<button disabled={busy} onClick={()=>void refresh()}>{busy?"Reading Sheets…":"Retry sheet connection"}</button><small>No stale browser draft is substituted.</small></div>;
   return <ConnectionContext.Provider value={{snapshot,busy,error,reload:()=>void refresh()}}>{children}</ConnectionContext.Provider>;
 }
-export function SheetStatus(){
+export function SheetStatus({compact=false,onDetails}:{compact?:boolean;onDetails?:()=>void}={}){
   const value=useContext(ConnectionContext),studio=useStudio();if(!value)return null;
   const {snapshot,busy,error,reload}=value,problem=studio.syncError||error;
-  return <section className={`studio-sheet-status ${problem?"warning":""}`} aria-label="Sheet synchronization status" data-sheet-revision={snapshot?.revision} data-save-pending={studio.pending} data-pending-count={studio.pendingCount}>
-    <div><strong>{studio.busy?"Saving to Google Sheets…":problem?"Sheet connection needs attention":"Live Google Sheet · autosave"}</strong><span>{problem||(studio.pending?studio.saved:snapshot?`${studio.layout.guestList.length} guests · ${studio.layout.guestList.filter(g=>g.tableId).length} seated · ${studio.layout.items.filter(t=>t.kind==="table").length} tables · checked ${new Date(snapshot.fetchedAt).toLocaleTimeString()}`:"Connecting…")}</span></div>
-    {studio.pending?<button disabled={studio.busy} onClick={studio.retry}>{studio.busy?"Saving…":"Retry save"}</button>:<button onClick={reload} disabled={busy}>{busy?"Checking…":"Reload sheet"}</button>}
+  return <section className={`studio-sheet-status ${compact?"compact ":""}${problem?"warning":""}`} aria-label="Sheet synchronization status" data-sheet-revision={snapshot?.revision} data-save-pending={studio.pending} data-pending-count={studio.pendingCount}>
+    <div><strong aria-live="polite">{studio.busy?"Saving to Google Sheets…":problem?"Sheet connection needs attention":"Live Google Sheet · autosave"}</strong><span>{problem||(studio.pending?studio.saved:snapshot?`${studio.layout.guestList.length} guests · ${studio.layout.guestList.filter(g=>g.tableId).length} seated · ${studio.layout.items.filter(t=>t.kind==="table").length} tables · checked ${new Date(snapshot.fetchedAt).toLocaleTimeString()}`:"Connecting…")}</span></div>
+    {studio.pending?<button disabled={studio.busy} onClick={studio.retry}>{studio.busy?"Saving…":"Retry save"}</button>:!compact||problem?<button onClick={reload} disabled={busy}>{busy?"Checking…":"Reload sheet"}</button>:<button className="studio-sheet-info" aria-label="Sheet details" onClick={onDetails}>•••</button>}
   </section>;
+}
+export function SheetDetails(){
+  const value=useContext(ConnectionContext),studio=useStudio();if(!value)return null;
+  return <div className="studio-sheet-details"><h3>Google Sheets</h3><p className="studio-note">{studio.layout.guestList.length} guests · {studio.layout.guestList.filter(g=>g.tableId).length} seated · {studio.layout.items.filter(t=>t.kind==="table").length} tables.<br/>Changes save automatically. {value.snapshot?`Last checked ${new Date(value.snapshot.fetchedAt).toLocaleTimeString()}.`:""}</p><button disabled={value.busy||studio.pending} onClick={value.reload}>{value.busy?"Checking…":"Reload sheet"}</button><p className="studio-note">Save errors and Retry save remain visible beside the bottom navigation. Invitation and RSVP records are not modified here.</p></div>;
 }

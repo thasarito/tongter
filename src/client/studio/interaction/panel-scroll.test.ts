@@ -1,0 +1,8 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { rememberPanelScroll } from "./panel-scroll";
+afterEach(()=>document.body.replaceChildren());
+describe("guest drag source scroll snapshot",()=>{
+ it("restores both axes without replacing the mounted source",()=>{document.body.innerHTML='<div class="studio-sidebar-scroll"><input value="family"><button>grip</button></div>';const panel=document.querySelector<HTMLElement>('div')!,handle=document.querySelector('button')!;panel.scrollTop=999;panel.scrollLeft=6;const restore=rememberPanelScroll(handle);panel.scrollTop=0;panel.scrollLeft=0;restore();expect(panel.scrollTop).toBe(999);expect(panel.scrollLeft).toBe(6);expect(document.querySelector('button')).toBe(handle);expect(document.querySelector('input')?.value).toBe('family');});
+ it("restores the drag-start position rather than a later focus-induced jump",()=>{const panel=document.createElement('div'),handle=document.createElement('button');panel.className='studio-sidebar-scroll';panel.append(handle);document.body.append(panel);panel.scrollTop=120;const restore=rememberPanelScroll(handle);panel.scrollTop=0;restore();panel.scrollTop=0;restore();expect(panel.scrollTop).toBe(120);});
+ it("does not touch detached panels or unrelated scene grips",()=>{const panel=document.createElement('div'),handle=document.createElement('button');panel.className='studio-sidebar-scroll';panel.append(handle);document.body.append(panel);panel.scrollTop=90;const restore=rememberPanelScroll(handle);panel.remove();panel.scrollTop=0;restore();expect(panel.scrollTop).toBe(0);expect(()=>rememberPanelScroll(document.createElement('span'))()).not.toThrow();});
+});
