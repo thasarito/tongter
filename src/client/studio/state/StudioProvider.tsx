@@ -1,0 +1,83 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { applyMutation, inverseMutation, mutationBetween, mutationSchema, type StudioMutation } from "@/shared/studio-mutations";
+import type { StudioSheetSnapshot } from "@/shared/studio-sheet";
+import { defaultLayout } from "../model/defaults";
+import { normalizeLayout, defaultOptions, clone, type StudioLayout, type SeatTarget, type ViewMode, type ViewOptions } from "../model/schema";
+import type { GuestImport } from "../model/exchange";
+import { SheetSaveError } from "./sheet-source";
+export interface Timeline {past:StudioMutation[];present:StudioLayout;future:StudioMutation[];message:string;revision:number}
+export type HistoryAction={type:"commit";label:string;update:(s:StudioLayout)=>StudioLayout}|{type:"undo"}|{type:"redo"}|{type:"notice";message:string}|{type:"hydrate";layout:StudioLayout};
+export function historyReducer(h:Timeline,a:HistoryAction):Timeline {
+  if(a.type==="notice")return {...h,message:a.message};
+  if(a.type==="hydrate")return {...h,present:normalizeLayout(a.layout),revision:h.revision+1};
+  try{
+    if(a.type==="undo"){const op=h.past.at(-1);return op?{...h,past:h.past.slice(0,-1),present:applyMutation(h.present,inverseMutation(op)),future:[op,...h.future],revision:h.revision+1,message:"Undo saved"}:h;}
+    if(a.type==="redo"){const [op,...future]=h.future;return op?{...h,past:[...h.past,op].slice(-60),present:applyMutation(h.present,{...op,id:crypto.randomUUID()}),future,revision:h.revision+1,message:"Redo saved"}:h;}
+    const present=normalizeLayout(a.update(clone(h.present))),operation=mutationBetween(h.present,present);
+    if(!operation.changes.length)return {...h,message:"No change needed."};
+    return {past:[...h.past,operation].slice(-60),present,future:[],message:a.label,revision:h.revision+1};
+  }catch(cause){return {...h,message:cause instanceof Error?cause.message:"Unable to apply change."};}
+}
+export type StudioModal={type:"seat";target:SeatTarget}|{type:"guest";id?:string;target?:SeatTarget}|{type:"import";data:GuestImport}|null;
+type Saver=(operation:StudioMutation)=>Promise<StudioSheetSnapshot>;
+interface Pending {operation:StudioMutation;rollback:Timeline}
+const PENDING_KEY="tongter:studio:pending-v1";
+interface StudioContextValue {
+  layout:StudioLayout;notice:string;revision:number;saved:string;selected:string|null;setSelected:(id:string|null)=>void;
+  view:ViewMode;setView:(v:ViewMode)=>void;options:ViewOptions;setOptions:(v:ViewOptions|((v:ViewOptions)=>ViewOptions))=>void;
+  modal:StudioModal;setModal:(v:StudioModal)=>void;picked:string[];setPicked:(v:string[]|((v:string[])=>string[]))=>void;
+  commit:(label:string,update:(s:StudioLayout)=>StudioLayout)=>void;undo:()=>void;redo:()=>void;canUndo:boolean;canRedo:boolean;notify:(message:string)=>void;
+  hydrate:(layout:StudioLayout)=>void;connect:(save:Saver)=>void;retry:()=>void;busy:boolean;pending:boolean;editable:boolean;syncError:string;
+}
+const StudioContext=createContext<StudioContextValue|null>(null);
+export function StudioProvider({children}:{children:ReactNode}){
+  const [history,setHistory]=useState<Timeline>(()=>({past:[],future:[],present:defaultLayout(),message:"Loading Google Sheets…",revision:0}));
+  const latest=useRef(history),saver=useRef<Saver|null>(null),job=useRef<Pending|null>(null),inflight=useRef(false),mounted=useRef(true),recovered=useRef(false);
+  const [connected,setConnected]=useState(false),[busy,setBusy]=useState(false),[pending,setPending]=useState(false),[syncError,setSyncError]=useState("");
+  const [selected,setSelected]=useState<string|null>(null),[view,setView]=useState<ViewMode>("plan"),[options,setOptions]=useState<ViewOptions>(defaultOptions),[modal,setModal]=useState<StudioModal>(null),[picked,setPicked]=useState<string[]>([]);
+  const publish=useCallback((value:Timeline)=>{latest.current=value;if(mounted.current)setHistory(value);},[]);
+  const notify=useCallback((message:string)=>publish({...latest.current,message}),[publish]);
+  const clearPending=useCallback(()=>{job.current=null;setPending(false);try{localStorage.removeItem(PENDING_KEY);}catch{/* memory copy remains authoritative */}},[]);
+  const run=useCallback(async()=>{
+    const current=job.current,write=saver.current;if(!current||!write||inflight.current)return;
+    inflight.current=true;setBusy(true);setSyncError("");
+    try{
+      const snapshot=await write(current.operation);if(!mounted.current)return;
+      publish({...latest.current,present:normalizeLayout(snapshot.layout),revision:latest.current.revision+1,message:"Saved to Google Sheets."});clearPending();
+    }catch(cause){
+      if(!mounted.current)return;
+      if(cause instanceof SheetSaveError&&cause.snapshot){
+        publish({...current.rollback,present:normalizeLayout(cause.snapshot.layout),revision:latest.current.revision+1,message:cause.message});clearPending();setSyncError(cause.message);
+      }else{setSyncError(cause instanceof Error?cause.message:"Save not confirmed. Retry uses the same operation ID.");}
+    }finally{inflight.current=false;if(mounted.current)setBusy(false);}
+  },[publish,clearPending]);
+  const hydrate=useCallback((layout:StudioLayout)=>{if(job.current)return;publish(historyReducer(latest.current,{type:"hydrate",layout}));},[publish]);
+  const connect=useCallback((write:Saver)=>{
+    saver.current=write;setConnected(true);
+    if(!recovered.current){recovered.current=true;try{const raw=localStorage.getItem(PENDING_KEY);if(raw){const operation=mutationSchema.parse(JSON.parse(raw));job.current={operation,rollback:latest.current};setPending(true);setSyncError("Recovering the previous unconfirmed save…");void run();}}catch{setSyncError("The stored pending operation is invalid. It was not sent to Sheets.");}}
+  },[run]);
+  const perform=useCallback((action:HistoryAction)=>{
+    if(job.current||!saver.current){notify(job.current?"Wait for this save, or retry it, before making another change.":"Wait for the sheet connection before editing.");return;}
+    const before=latest.current,after=historyReducer(before,action);
+    if(after.revision===before.revision){publish(after);return;}
+    try{
+      const operation=mutationBetween(before.present,after.present);if(!operation.changes.length){publish(after);return;}
+      job.current={operation,rollback:before};setPending(true);publish(after);
+      try{localStorage.setItem(PENDING_KEY,JSON.stringify(operation));}catch{notify("Saving… Keep this tab open until confirmation; local recovery storage is unavailable.");}
+      void run();
+    }catch(cause){notify(cause instanceof Error?cause.message:"Unable to prepare the save.");}
+  },[notify,publish,run]);
+  const commit=useCallback((label:string,update:(s:StudioLayout)=>StudioLayout)=>perform({type:"commit",label,update}),[perform]);
+  const undo=useCallback(()=>perform({type:"undo"}),[perform]),redo=useCallback(()=>perform({type:"redo"}),[perform]),retry=useCallback(()=>{void run();},[run]);
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
+  useEffect(()=>{
+    const key=(e:KeyboardEvent)=>{if(e.target instanceof Element&&e.target.closest("input,select,textarea,[contenteditable=true]"))return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){e.preventDefault();if(e.shiftKey)redo();else undo();}};
+    const leave=(e:BeforeUnloadEvent)=>{if(job.current){e.preventDefault();e.returnValue="";}};
+    const online=()=>{if(job.current)void run();};window.addEventListener("keydown",key);window.addEventListener("beforeunload",leave);window.addEventListener("online",online);
+    return()=>{window.removeEventListener("keydown",key);window.removeEventListener("beforeunload",leave);window.removeEventListener("online",online);};
+  },[undo,redo,run]);
+  const saved=pending?(busy?"Saving to Google Sheets…":"Save not confirmed · retry available"):connected?"Google Sheets · automatic saving":"Connecting to Google Sheets…";
+  const value=useMemo(()=>({layout:history.present,notice:history.message,revision:history.revision,saved,selected,setSelected,view,setView,options,setOptions,modal,setModal,picked,setPicked,commit,undo,redo,canUndo:connected&&!pending&&!!history.past.length,canRedo:connected&&!pending&&!!history.future.length,notify,hydrate,connect,retry,busy,pending,editable:connected&&!pending,syncError}),[history,saved,selected,view,options,modal,picked,commit,undo,redo,notify,hydrate,connect,retry,busy,pending,connected,syncError]);
+  return <StudioContext.Provider value={value}>{children}</StudioContext.Provider>;
+}
+export function useStudio(){const value=useContext(StudioContext);if(!value)throw Error("StudioProvider is required.");return value;}

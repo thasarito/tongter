@@ -1,4 +1,4 @@
-# Wedding RSVP — warissara.thasarito.com
+# Wedding RSVP and Seating — warissara.thasarito.com
 
 Bilingual Thai/English wedding Save the Date, invitation, and RSVP application.
 The React client and Hono API are deployed together as one Cloudflare Worker;

@@ -1,4 +1,5 @@
 import type { Lang } from "@/shared/i18n";
+import type { StudioGuestImport } from "@/shared/studio-guests";
 import type {
   AdminView,
   JourneyIntroView,
@@ -77,4 +78,5 @@ export const weddingApi = {
     getJson<AdminView>(`/api/admin/summary?${query(lang)}`),
   adminQr: (lang: Lang) =>
     getJson<QrSheetView>(`/api/admin/qr?${query(lang)}`),
+  adminStudioGuests: () => getJson<StudioGuestImport>("/api/admin/studio/guests"),
 };

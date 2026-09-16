@@ -1,0 +1,11 @@
+{
+  "$schema":"./node_modules/wrangler/config-schema.json",
+  "name":"warissara-studio-writer",
+  "main":"src/worker/studio-coordinator.ts",
+  "compatibility_date":"2026-08-21",
+  "compatibility_flags":["nodejs_compat"],
+  "workers_dev":false,
+  "preview_urls":false,
+  "migrations":[{"tag":"v1","new_sqlite_classes":["StudioSheetWriter"]}],
+  "observability":{"enabled":false}
+}
