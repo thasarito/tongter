@@ -11,11 +11,11 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
 import type { AppDependencies } from "../dependencies";
 import type { WorkerBindings } from "../env";
+import { configuredPassphraseMatches } from "../auth/admin-password";
 import {
   ADMIN_COOKIE,
   ADMIN_MAX_AGE_SECONDS,
   createAdminSession,
-  passphraseMatches,
   verifyAdminSession,
 } from "../auth/admin-session";
 import { apiError } from "../contracts";
@@ -32,8 +32,8 @@ export function adminRoutes(deps: AppDependencies) {
       const parsed = loginSchema.safeParse(await c.req.json().catch(() => null));
       if (
         !parsed.success ||
-        !c.env.ADMIN_PASSPHRASE ||
-        !(await passphraseMatches(parsed.data.passphrase, c.env.ADMIN_PASSPHRASE))
+        !c.env.ADMIN_SESSION_SECRET ||
+        !(await configuredPassphraseMatches(parsed.data.passphrase, c.env))
       ) {
         return c.json(apiError("UNAUTHORIZED", "Invalid passphrase."), 401);
       }

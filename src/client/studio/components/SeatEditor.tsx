@@ -51,14 +51,14 @@ export function SeatEditor({target}:{target:SeatTarget}) {
       <button disabled={!canUndo} onClick={undo}>↶ Undo</button><button disabled={!canRedo} onClick={redo}>↷ Redo</button><button onClick={()=>exportSeatingHtml(layout,table.id)}>Export this table</button>
     </div>
     <div className="studio-seat-editor"><section>
-      <p className="studio-note">Green = assigned · cream = empty. Click a chair/name or drag between seats. Seat 1 starts on the table's local right; numbering rotates with it.</p>
+      <p className="studio-note">Guest names sit directly on their assigned chairs. Drag a name to move or swap. Empty-seat numbers remain available for precise assignment.</p>
       <svg className="studio-seat-diagram" viewBox={`${minX} ${minY} ${maxX-minX} ${maxY-minY}`} aria-label={`Table ${table.label} seat map`}>
-        {options.guestNames&&labels.map(label=><GuestNameBadge key={label.key} label={label} onSelect={()=>select(label.seatNumber)}/>)}
         <g transform={`rotate(${table.rotation})`}>
           {table.shape==="rect"?<rect x={-table.w/2} y={-table.d/2} width={table.w} height={table.d} rx={.08} fill="#e5eadb" stroke="#aebca1" strokeWidth={.025}/>:<ellipse rx={table.w/2} ry={table.d/2} fill="#e5eadb" stroke="#aebca1" strokeWidth={.025}/>}
           {positions.map(p=><PlanSeat key={p.number} table={table} number={p.number} layout={layout} onSelect={()=>select(p.number)}/>)}
         </g>
         <text y={.1} textAnchor="middle" fontSize={.35} fill="#657b59">{table.label}</text>
+        {options.guestNames&&labels.map(label=><GuestNameBadge key={label.key} label={label} onSelect={()=>select(label.seatNumber)}/>)}
       </svg>
       <h3>Who sits where</h3><div className="studio-seat-list">{positions.map(p=><SeatRow key={p.number} target={{tableId:table.id,seatNumber:p.number}} selected={p.number===effective} onSelect={()=>select(p.number)}/>)}</div>
     </section><section className="studio-seat-assignment">

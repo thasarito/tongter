@@ -4,6 +4,8 @@ export interface WorkerBindings {
   GOOGLE_SHEET_ID: string;
   GOOGLE_CREDENTIALS_JSON: string;
   ADMIN_PASSPHRASE: string;
+  /** Preferred server-side verifier. Overrides the legacy plaintext binding. */
+  ADMIN_PASSPHRASE_HASH?: string;
   ADMIN_SESSION_SECRET: string;
   MOCK_SHEET?: string;
 }

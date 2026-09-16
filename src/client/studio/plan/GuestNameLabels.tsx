@@ -13,11 +13,10 @@ export function usePlanLabels(layout:StudioLayout,enabled:boolean) {
 }
 export function GuestNameBadge({label,onSelect}:{label:LabelBox;onSelect?:()=>void}) {
   const {setModal}=useStudio(),target={tableId:label.tableId,seatNumber:label.seatNumber},drop=useDropTarget(target);
-  const endX=Math.max(label.x,Math.min(label.x+label.w,label.anchor[0])),endY=Math.max(label.y,Math.min(label.y+label.h,label.anchor[1]));
   const open=()=>onSelect?onSelect():setModal({type:"seat",target});
-  return <g className="studio-name-badge" {...drop} data-guest-drag={label.guestId} role="button" tabIndex={0} aria-label={`Seat ${label.seatNumber}: ${label.name}. Drag to move, or activate to edit.`} onClick={open} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();open();}}}>
-    <title>{label.name} · Seat {label.seatNumber}</title><path d={`M${label.anchor.join(" ")}L${endX} ${endY}`} fill="none" stroke="#7e9875" strokeWidth={.018} pointerEvents="none"/>
+  return <g className="studio-name-badge" {...drop} data-guest-drag={label.guestId} data-anchor-x={label.anchor[0]} data-anchor-z={label.anchor[1]} role="button" tabIndex={0} aria-label={`Seat ${label.seatNumber}: ${label.name}. Drag to move, or activate to edit.`} onPointerDown={e=>e.stopPropagation()} onClick={open} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();open();}}}>
+    <title>{label.name}</title>
     <rect x={label.x} y={label.y} width={label.w} height={label.h} rx={.07} fill="#fffef5" stroke="#9aac8b" strokeWidth={.022}/>
-    <text fontSize={.185} fill="#35513c" fontFamily="Arial,sans-serif" fontWeight={500} pointerEvents="none">{label.lines.map((line,i)=><tspan key={i} x={label.x+.1} y={label.y+.24+i*.24}>{line}</tspan>)}</text>
+    <text textAnchor="middle" fontSize={.185} fill="#35513c" fontFamily="Arial,sans-serif" fontWeight={500} pointerEvents="none">{label.lines.map((line,i)=><tspan key={i} x={label.anchor[0]} y={label.y+.24+i*.24}>{line}</tspan>)}</text>
   </g>;
 }

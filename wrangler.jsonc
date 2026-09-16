@@ -12,6 +12,12 @@
   "routes": [
     { "pattern": "warissara.thasarito.com/*", "zone_name": "thasarito.com" }
   ],
+  "vars": {
+    // Explicitly requested administrator password, stored only as a salted verifier.
+    // Replace this weak preview credential before using private live guest data.
+    // ADMIN_SESSION_SECRET remains a separate, non-public Cloudflare secret.
+    "ADMIN_PASSPHRASE_HASH": "pbkdf2-sha256$100000$9bdff9b394f219b6786dc1ea771ba7c3$34d9acc60aa9a5a6a7c2886369f4ff6bf7763881164463a9898e312006545ddf"
+  },
   "env": {
     "test": {}
   },

@@ -3,7 +3,7 @@ import { defaultLayout } from "./defaults";
 import { clone, guestSchema, normalizeLayout, occupant, parseLayout, type StudioLayout } from "./schema";
 import { distributeGuests, moveGuests, removeItem, replaceSeat } from "./commands";
 import { applyGuestImport, guestCsv, guestJson, parseGuestImport } from "./exchange";
-import { boxesOverlap, labelLayout, wrapName } from "./labels";
+import { labelLayout, wrapName } from "./labels";
 import { pointInside, seats } from "./geometry";
 import { historyReducer, type Timeline } from "../state/StudioProvider";
 import { WalkMotion } from "../scene/walk-motion";
@@ -40,7 +40,8 @@ describe("CSV and site roster compatibility",()=>{
 
 describe("label geometry and walking",()=>{
   it("retains exact numbered chairs under table rotation",()=>{const t={...defaultLayout().items[0],x:5,z:6,rotation:90};const p=seats(t)[0];expect(p.number).toBe(1);expect(p.world[0]).toBeCloseTo(5);expect(p.world[1]).toBeCloseTo(7.31);});
-  it("packs every assigned name without overlapping rectangles",()=>{let s=fixture(200);s.guestList.forEach((g,i)=>{g.tableId=`table-${Math.floor(i/10)+1}`;g.seatNumber=i%10+1;g.name=`Synthetic guest ${i} · ทดสอบ`;});s=normalizeLayout(s);const labels=labelLayout(s,t=>Array.from(t).length*.1);expect(labels).toHaveLength(200);for(let i=0;i<labels.length;i++)for(let j=i+1;j<labels.length;j++)expect(boxesOverlap(labels[i],labels[j],.049)).toBe(false);});
+  // Updated requirement: fixed on-seat names replace the former displaced packing.
+  it("keeps every name centered on its assigned seat without number prefixes",()=>{let s=fixture(200);s.guestList.forEach((g,i)=>{g.tableId=`table-${Math.floor(i/10)+1}`;g.seatNumber=i%10+1;g.name=`Synthetic guest ${i} · ทดสอบ`;});s=normalizeLayout(s);const labels=labelLayout(s,t=>Array.from(t).length*.1);expect(labels).toHaveLength(200);for(const label of labels){const t=s.items.find(t=>t.id===label.tableId)!,p=seats(t)[label.seatNumber-1],g=s.guestList.find(g=>g.id===label.guestId)!;expect(label.x+label.w/2).toBeCloseTo(p.world[0]);expect(label.y+label.h/2).toBeCloseTo(p.world[1]);expect(label.lines.join("").replace(/\s/g,"")).toBe(g.name.replace(/\s/g,""));}});
   it("wraps rather than truncates long Unicode names",()=>{const name="ทดสอบชื่อผู้ร่วมงานยาวมาก ABCDEFGHIJKLMNOPQRSTUVWXYZ";expect(wrapName(name,1.2,s=>Array.from(s).length*.1).join("").replace(/\s/g,"")).toBe(name.replace(/\s/g,""));});
   it("excludes the courtyard notch from walking space",()=>{expect(pointInside(-11.5,2)).toBe(false);expect(pointInside(0,0)).toBe(true);expect(pointInside(0,-8)).toBe(true);});
   it("travels at the same pace at 30 and 144 frames per second",()=>{const a=new WalkMotion(()=>true),b=new WalkMotion(()=>true);a.press("w","forward");b.press("w","forward");for(let i=0;i<60;i++)a.update(1/30);for(let i=0;i<288;i++)b.update(1/144);expect(a.x).toBeCloseTo(b.x,2);});
