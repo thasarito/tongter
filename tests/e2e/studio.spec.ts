@@ -49,7 +49,17 @@ test("loads the real R3F scene and name-only Html labels",async({page},testInfo)
   await expect(page.locator(".studio-three-view canvas")).toBeVisible();
   const name=page.locator('.studio-seat-name-label[data-guest-drag="test-alice"]');
   await expect(name).toBeVisible({timeout:20_000});await expect(name).toHaveText("Alice");await expect(name.locator("small")).toHaveCount(0);
-  await expect(page.locator(".studio-render-fallback")).toHaveCount(0);
+  // R3F renders fallback DOM as a child of <canvas>, like alternative image text.
+  // Its presence is not a graphics failure: assert visibility AND rendered pixels.
+  await expect(page.locator(".studio-render-fallback:visible")).toHaveCount(0);
+  await expect.poll(()=>page.locator(".studio-three-view canvas").evaluate((node:HTMLCanvasElement)=>{
+    const gl=node.getContext("webgl2");if(!gl||gl.isContextLost())return false;
+    const pixel=new Uint8Array(4),colors=new Set<string>();
+    for(const x of [.2,.35,.5,.65,.8])for(const y of [.2,.35,.5,.65,.8]){
+      gl.readPixels(Math.floor(x*node.width),Math.floor(y*node.height),1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);colors.add(Array.from(pixel).join(","));
+    }
+    return colors.size>1;
+  }),{message:"The live WebGL scene should render geometry, not just a blank canvas",timeout:15_000}).toBe(true);
   await testInfo.attach("r3f-seat-labels",{body:await page.screenshot(),contentType:"image/png"});
   expect(errors).toEqual([]);
 });
