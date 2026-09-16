@@ -38,7 +38,7 @@ export function GuestDragProvider({children}:{children:ReactNode}){
     function down(e:PointerEvent){
       if(session.current||e.button!==0)return;suppress.current=0;cancelAnimationFrame(restoreFrame);
       const el=e.target instanceof Element?e.target.closest("[data-guest-drag]"):null,id=el?.getAttribute("data-guest-drag");if(!el||!id)return;
-      const state=latest.current;if(!state.editable){e.preventDefault();state.notify("Wait for the sheet connection before another move.");return;}
+      const state=latest.current;if(!state.editable){e.preventDefault();state.notify("Finish the current review or sheet connection before another move.");return;}
       const ids=el.hasAttribute("data-roster-drag")&&state.picked.includes(id)?state.picked:[id];if(ids.some(id=>!state.layout.guestList.some(g=>g.id===id)))return;
       e.preventDefault();e.stopPropagation();
       session.current={pointerId:e.pointerId,handle:el,ids,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,active:false,focus:false,revision:state.revision,restoreScroll:rememberPanelScroll(el)};
@@ -66,7 +66,7 @@ export function GuestDragProvider({children}:{children:ReactNode}){
       // Resolve while the panel is still transparent; restoring it first would
       // catch a drop intended for a seat beneath the guest sheet.
       const target=at(e.clientX,e.clientY),ids=s.ids.slice();clear();if(!target){latest.current.notify("No seat selected. Assignments unchanged.");return;}
-      latest.current.commit("Saving seating to Google Sheets…",layout=>moveGuests(layout,ids,target));latest.current.setPicked([]);
+      latest.current.commit("Update seating",layout=>moveGuests(layout,ids,target),()=>latest.current.setPicked([]));
     }
     const cancel=()=>clear(true),pointerCancel=(e:PointerEvent)=>{if(session.current?.pointerId===e.pointerId)clear(true);};
     const key=(e:KeyboardEvent)=>{if(session.current&&e.key==="Escape"){e.preventDefault();e.stopImmediatePropagation();clear(true);}};

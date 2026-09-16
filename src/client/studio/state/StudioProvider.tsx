@@ -5,6 +5,9 @@ import { defaultLayout } from "../model/defaults";
 import { normalizeLayout, defaultOptions, clone, type StudioLayout, type SeatTarget, type ViewMode, type ViewOptions } from "../model/schema";
 import type { GuestImport } from "../model/exchange";
 import { SheetSaveError } from "./sheet-source";
+import { summarizeSheetMutation, summarizeSheetRetry, type SheetActionSummary } from "../model/sheet-action-summary";
+import { SheetConfirmationGate, type SheetConfirmation } from "./sheet-confirmation";
+import { SheetActionDialog } from "../components/SheetActionDialog";
 export interface Timeline {past:StudioMutation[];present:StudioLayout;future:StudioMutation[];message:string;revision:number}
 export type HistoryAction={type:"commit";label:string;update:(s:StudioLayout)=>StudioLayout}|{type:"undo"}|{type:"redo"}|{type:"notice";message:string}|{type:"hydrate";layout:StudioLayout};
 export function historyReducer(h:Timeline,a:HistoryAction):Timeline {
@@ -35,17 +38,23 @@ interface StudioContextValue {
   layout:StudioLayout;notice:string;revision:number;saved:string;selected:string|null;setSelected:(id:string|null)=>void;
   view:ViewMode;setView:(v:ViewMode)=>void;options:ViewOptions;setOptions:(v:ViewOptions|((v:ViewOptions)=>ViewOptions))=>void;
   modal:StudioModal;setModal:(v:StudioModal)=>void;picked:string[];setPicked:(v:string[]|((v:string[])=>string[]))=>void;
-  commit:(label:string,update:(s:StudioLayout)=>StudioLayout)=>void;undo:()=>void;redo:()=>void;canUndo:boolean;canRedo:boolean;notify:(message:string)=>void;
+  commit:(label:string,update:(s:StudioLayout)=>StudioLayout,onConfirmed?:(layout:StudioLayout)=>void)=>void;undo:()=>void;redo:()=>void;canUndo:boolean;canRedo:boolean;notify:(message:string)=>void;
+  reviewing:boolean;isReviewing:()=>boolean;reviewSheetAction:(summary:SheetActionSummary,execute:()=>void)=>void;
   hydrate:(layout:StudioLayout)=>void;connect:(save:Saver)=>void;retry:()=>void;busy:boolean;pending:boolean;pendingCount:number;editable:boolean;syncError:string;
 }
 const StudioContext=createContext<StudioContextValue|null>(null);
 export function StudioProvider({children}:{children:ReactNode}){
   const [history,setHistory]=useState<Timeline>(()=>({past:[],future:[],present:defaultLayout(),message:"Loading Google Sheets…",revision:0}));
+  const [review,setReview]=useState<SheetConfirmation|null>(null),[approval]=useState(()=>new SheetConfirmationGate(setReview));
   const latest=useRef(history),saver=useRef<Saver|null>(null),queue=useRef<StudioMutation[]>([]),inflight=useRef(false),paused=useRef(false),mounted=useRef(true),recovered=useRef(false),restoringRef=useRef(false);
   const [connected,setConnected]=useState(false),[busy,setBusy]=useState(false),[pendingCount,setPendingCount]=useState(0),[syncError,setSyncError]=useState(""),[restoring,setRestoring]=useState(false);
   const [selected,setSelected]=useState<string|null>(null),[view,setView]=useState<ViewMode>("plan"),[options,setOptions]=useState<ViewOptions>(defaultOptions),[modal,setModal]=useState<StudioModal>(null),[picked,setPicked]=useState<string[]>([]);
   const publish=useCallback((value:Timeline)=>{latest.current=value;if(mounted.current)setHistory(value);},[]);
   const notify=useCallback((message:string)=>publish({...latest.current,message}),[publish]);
+  const isReviewing=useCallback(()=>!!approval.current,[approval]);
+  const reviewSheetAction=useCallback((summary:SheetActionSummary,execute:()=>void)=>{
+    if(!approval.request(summary,execute))notify("Finish reviewing the current action first.");
+  },[approval,notify]);
   const persistQueue=useCallback(()=>{
     setPendingCount(queue.current.length);
     try{
@@ -111,27 +120,51 @@ export function StudioProvider({children}:{children:ReactNode}){
       }catch{setSyncError("The stored pending queue is invalid or unavailable. It was not sent to Sheets.");}
     }
   },[persistQueue,run]);
-  const perform=useCallback((action:HistoryAction)=>{
+  const perform=useCallback((action:HistoryAction,onConfirmed?:(layout:StudioLayout)=>void)=>{
+    if(approval.current){notify("Finish reviewing the current action first.");return;}
     if(!saver.current||restoringRef.current){notify(restoringRef.current?"Confirming the previous session's pending edits before resuming.":"Wait for the sheet connection before editing.");return;}
     const before=latest.current,after=historyReducer(before,action);
     if(after.revision===before.revision){publish(after);return;}
     try{
       const operation=mutationBetween(before.present,after.present);if(!operation.changes.length){publish(after);return;}
-      queue.current.push(operation);publish(after);persistQueue();void run();
+      const intent=action.type==="undo"||action.type==="redo"?action.type:"commit",label=action.type==="commit"?action.label:"";
+      const summary=summarizeSheetMutation(before.present,operation,intent,label);
+      reviewSheetAction(summary,()=>{
+        if(!mounted.current||!saver.current||restoringRef.current)throw Error("The sheet connection changed while you reviewed this action.");
+        const current=latest.current;
+        if(!same(current.past,before.past)||!same(current.future,before.future))throw Error("Earlier saves changed the undo history while you were reviewing.");
+        // Apply the exact reviewed mutation, never rerun an updater that might
+        // pick a different seat, regenerate IDs or restore a stale whole layout.
+        const present=applyMutation(current.present,operation);
+        const refreshed=summarizeSheetMutation(current.present,mutationBetween(current.present,present,operation.id),intent,label);
+        if(!same(summary,refreshed))throw Error("The action details changed while you were reviewing.");
+        queue.current.push(operation);
+        publish({...after,present,revision:current.revision+1});persistQueue();void run();
+        try{onConfirmed?.(present);}catch{notify("The change was queued, but the editor could not update its selection.");}
+      });
     }catch(cause){notify(cause instanceof Error?cause.message:"Unable to prepare the save.");}
-  },[notify,publish,persistQueue,run]);
-  const commit=useCallback((label:string,update:(s:StudioLayout)=>StudioLayout)=>perform({type:"commit",label,update}),[perform]);
-  const undo=useCallback(()=>perform({type:"undo"}),[perform]),redo=useCallback(()=>perform({type:"redo"}),[perform]),retry=useCallback(()=>{paused.current=false;void run();},[run]);
+  },[approval,reviewSheetAction,notify,publish,persistQueue,run]);
+  const commit=useCallback((label:string,update:(s:StudioLayout)=>StudioLayout,onConfirmed?:(layout:StudioLayout)=>void)=>perform({type:"commit",label,update},onConfirmed),[perform]);
+  const undo=useCallback(()=>perform({type:"undo"}),[perform]),redo=useCallback(()=>perform({type:"redo"}),[perform]);
+  const resume=useCallback(()=>{paused.current=false;void run();},[run]);
+  const retry=useCallback(()=>{
+    if(!queue.current.length||inflight.current)return;
+    const operations=queue.current.slice();
+    reviewSheetAction(summarizeSheetRetry(latest.current.present,operations),()=>{
+      if(!same(operations,queue.current))throw Error("The pending saves changed while you were reviewing.");
+      resume();
+    });
+  },[reviewSheetAction,resume]);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
   useEffect(()=>{
     const key=(e:KeyboardEvent)=>{if(e.target instanceof Element&&e.target.closest("input,select,textarea,[contenteditable=true]"))return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){e.preventDefault();if(e.shiftKey)redo();else undo();}};
     const leave=(e:BeforeUnloadEvent)=>{if(queue.current.length){e.preventDefault();e.returnValue="";}};
-    const online=()=>{if(queue.current.length)retry();};window.addEventListener("keydown",key);window.addEventListener("beforeunload",leave);window.addEventListener("online",online);
+    const online=()=>{if(queue.current.length)resume();};window.addEventListener("keydown",key);window.addEventListener("beforeunload",leave);window.addEventListener("online",online);
     return()=>{window.removeEventListener("keydown",key);window.removeEventListener("beforeunload",leave);window.removeEventListener("online",online);};
-  },[undo,redo,retry]);
-  const pending=pendingCount>0,editable=connected&&!restoring;
+  },[undo,redo,resume]);
+  const pending=pendingCount>0,reviewing=!!review,editable=connected&&!restoring&&!reviewing;
   const saved=restoring?"Confirming recovered edits…":pending?(busy?`Saving to Google Sheets · ${pendingCount} pending · keep editing`: `${pendingCount} changes pending · retry available · keep editing`):connected?"Google Sheets · automatic saving":"Connecting to Google Sheets…";
-  const value=useMemo(()=>({layout:history.present,notice:history.message,revision:history.revision,saved,selected,setSelected,view,setView,options,setOptions,modal,setModal,picked,setPicked,commit,undo,redo,canUndo:editable&&!!history.past.length,canRedo:editable&&!!history.future.length,notify,hydrate,connect,retry,busy,pending,pendingCount,editable,syncError}),[history,saved,selected,view,options,modal,picked,commit,undo,redo,notify,hydrate,connect,retry,busy,pending,pendingCount,editable,syncError]);
-  return <StudioContext.Provider value={value}>{children}</StudioContext.Provider>;
+  const value=useMemo(()=>({layout:history.present,notice:history.message,revision:history.revision,saved,selected,setSelected,view,setView,options,setOptions,modal,setModal,picked,setPicked,commit,undo,redo,canUndo:editable&&!!history.past.length,canRedo:editable&&!!history.future.length,notify,hydrate,connect,retry,busy,pending,pendingCount,editable,syncError,reviewing,isReviewing,reviewSheetAction}),[history,saved,selected,view,options,modal,picked,commit,undo,redo,notify,hydrate,connect,retry,busy,pending,pendingCount,editable,syncError,reviewing,isReviewing,reviewSheetAction]);
+  return <StudioContext.Provider value={value}>{children}{review&&<SheetActionDialog key={review.id} review={review} onConfirm={id=>approval.confirm(id)} onCancel={id=>approval.cancel(id)}/>}</StudioContext.Provider>;
 }
 export function useStudio(){const value=useContext(StudioContext);if(!value)throw Error("StudioProvider is required.");return value;}

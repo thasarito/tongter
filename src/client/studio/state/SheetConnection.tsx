@@ -5,6 +5,7 @@ import type { StudioSheetResponse, StudioSheetSnapshot } from "@/shared/studio-s
 import { useGuestDrag } from "../interaction/GuestDragProvider";
 import { useStudio } from "./StudioProvider";
 import { fetchStudioSheet, saveStudioSheet, SheetSaveError } from "./sheet-source";
+import { summarizeSheetReload } from "../model/sheet-action-summary";
 import "../styles/sheet-source.css";
 interface Connection {snapshot:StudioSheetSnapshot|null;busy:boolean;error:string;reload:()=>void}
 const ConnectionContext=createContext<Connection|null>(null);
@@ -18,12 +19,12 @@ export function SheetConnection({children,onUnauthorized,loadSheet=fetchStudioSh
     catch(cause){if(cause instanceof SheetSaveError){if(cause.snapshot&&mounted.current)setSnapshot(cause.snapshot);if(cause.status===401)onUnauthorized();}throw cause;}
   },[saveSheet,onUnauthorized]);
   const refresh=useCallback(async()=>{
-    const current=latest.current;if(!mounted.current||reading.current||current.studio.pending||current.drag.active||current.studio.modal)return;
+    const current=latest.current;if(!mounted.current||reading.current||current.studio.pending||current.studio.isReviewing()||current.drag.active||current.studio.modal)return;
     reading.current=true;setBusy(true);const serial=++generation.current,controller=new AbortController();request.current=controller;
     try{
       const value=await loadSheet(controller.signal);if(!mounted.current||serial!==generation.current)return;
       if(value.status!=="ok"){setError("Google Sheets is not configured. No old browser draft is shown instead.");return;}
-      if(latest.current.studio.pending||latest.current.drag.active||latest.current.studio.modal)return;
+      if(latest.current.studio.pending||latest.current.studio.isReviewing()||latest.current.drag.active||latest.current.studio.modal)return;
       latest.current.studio.hydrate(value.layout);latest.current.studio.connect(write);setSnapshot(value);setReady(true);setError("");
     }catch(cause){if(!mounted.current||serial!==generation.current)return;if(cause instanceof ApiError&&cause.status===401){onUnauthorized();return;}setError(cause instanceof Error?cause.message:"Sheet refresh failed.");}
     finally{reading.current=false;if(mounted.current)setBusy(false);}
@@ -32,8 +33,9 @@ export function SheetConnection({children,onUnauthorized,loadSheet=fetchStudioSh
     mounted.current=true;void refresh();const tick=()=>{if(!document.hidden)void refresh();};const timer=window.setInterval(tick,30_000);window.addEventListener("focus",tick);
     return()=>{mounted.current=false;generation.current++;reading.current=false;request.current?.abort();clearInterval(timer);window.removeEventListener("focus",tick);};
   },[refresh]);
-  if(!ready)return <div className="studio-root studio-sheet-loading" role="status"><h1>Loading your live seating sheet…</h1><p>Google Sheets supplies the guests, exact seats and table positions.</p>{error&&<p role="alert">{error}</p>}<button disabled={busy} onClick={()=>void refresh()}>{busy?"Reading Sheets…":"Retry sheet connection"}</button><small>No stale browser draft is substituted.</small></div>;
-  return <ConnectionContext.Provider value={{snapshot,busy,error,reload:()=>void refresh()}}>{children}</ConnectionContext.Provider>;
+  const reviewReload=()=>studio.reviewSheetAction(summarizeSheetReload(),()=>{void refresh();});
+  if(!ready)return <div className="studio-root studio-sheet-loading" role="status"><h1>Loading your live seating sheet…</h1><p>Google Sheets supplies the guests, exact seats and table positions.</p>{error&&<p role="alert">{error}</p>}<button disabled={busy} onClick={reviewReload}>{busy?"Reading Sheets…":"Retry sheet connection"}</button><small>No stale browser draft is substituted.</small></div>;
+  return <ConnectionContext.Provider value={{snapshot,busy,error,reload:reviewReload}}>{children}</ConnectionContext.Provider>;
 }
 export function SheetStatus({compact=false,onDetails}:{compact?:boolean;onDetails?:()=>void}={}){
   const value=useContext(ConnectionContext),studio=useStudio();if(!value)return null;
@@ -45,5 +47,5 @@ export function SheetStatus({compact=false,onDetails}:{compact?:boolean;onDetail
 }
 export function SheetDetails(){
   const value=useContext(ConnectionContext),studio=useStudio();if(!value)return null;
-  return <div className="studio-sheet-details"><h3>Google Sheets</h3><p className="studio-note">{studio.layout.guestList.length} guests · {studio.layout.guestList.filter(g=>g.tableId).length} seated · {studio.layout.items.filter(t=>t.kind==="table").length} tables.<br/>Changes save automatically. {value.snapshot?`Last checked ${new Date(value.snapshot.fetchedAt).toLocaleTimeString()}.`:""}</p><button disabled={value.busy||studio.pending} onClick={value.reload}>{value.busy?"Checking…":"Reload sheet"}</button><p className="studio-note">Save errors and Retry save remain visible beside the bottom navigation. Invitation and RSVP records are not modified here.</p></div>;
+  return <div className="studio-sheet-details"><h3>Google Sheets</h3><p className="studio-note">{studio.layout.guestList.length} guests · {studio.layout.guestList.filter(g=>g.tableId).length} seated · {studio.layout.items.filter(t=>t.kind==="table").length} tables.<br/>Confirmed changes save automatically. {value.snapshot?`Last checked ${new Date(value.snapshot.fetchedAt).toLocaleTimeString()}.`:""}</p><button disabled={value.busy||studio.pending} onClick={value.reload}>{value.busy?"Checking…":"Reload sheet"}</button><p className="studio-note">Save errors and Retry save remain visible beside the bottom navigation. Invitation and RSVP records are not modified here.</p></div>;
 }

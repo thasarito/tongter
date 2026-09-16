@@ -1,6 +1,6 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup, fireEvent, renderHook, screen } from "@testing-library/react";
 import { applyMutation, type StudioMutation } from "@/shared/studio-mutations";
 import type { StudioSheetSnapshot } from "@/shared/studio-sheet";
 import { defaultLayout } from "../model/defaults";
@@ -8,6 +8,7 @@ import { clone } from "../model/schema";
 import { StudioProvider, useStudio } from "../state/StudioProvider";
 import { usePlanCamera } from "./usePlanCamera";
 
+const approve = () => fireEvent.click(screen.getByRole("button", { name: "Confirm & save" }));
 const event = (x: number, y: number) => ({
   button: 0, pointerId: 1, clientX: x, clientY: y, stopPropagation() {},
 } as ReactPointerEvent<SVGSVGElement>);
@@ -55,11 +56,13 @@ describe("table dragging during sheet synchronization", () => {
   it("finishes the second table drag when the first save completes mid-gesture", async () => {
     const view = mount();
     act(() => view.result.current.studio.commit("Move first", layout => ({ ...layout, items: layout.items.map(item => item.id === "table-1" ? { ...item, x: 1 } : item) })));
+    approve();
     view.begin();
     expect(view.result.current.plan.preview).toMatchObject({ id: "table-2", x: 3, z: 4 });
     await view.confirm(0);
     expect(view.result.current.plan.preview).toMatchObject({ id: "table-2", x: 3, z: 4 });
     act(() => view.result.current.plan.finish(event(3, 4)));
+    approve();
     expect(view.requests).toHaveLength(2);
     await view.confirm(1);
     expect(view.result.current.studio.layout.items.find(item => item.id === "table-2")).toMatchObject({ x: 3, z: 4 });
@@ -73,6 +76,7 @@ describe("table dragging during sheet synchronization", () => {
     act(() => view.result.current.studio.hydrate(layout));
     expect(view.result.current.plan.preview).toMatchObject({ id: "table-2", x: 3, z: 4 });
     act(() => view.result.current.plan.finish(event(3, 4)));
+    approve();
     expect(view.result.current.studio.layout.items[0].x).toBe(7);
     expect(view.result.current.studio.layout.items[1]).toMatchObject({ x: 3, z: 4 });
     expect(view.requests).toHaveLength(1);
