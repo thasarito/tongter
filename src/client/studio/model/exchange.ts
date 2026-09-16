@@ -29,7 +29,7 @@ export function parseGuestImport(text:string,label:string):GuestImport {
   if(text.length>5_000_000)throw Error("Guest files must be smaller than 5 MB.");
   if(text.includes("\uFFFD"))throw Error("Invalid text encoding. Use UTF-8 CSV or JSON.");
   text=text.replace(/^\uFEFF/,"");let raw:unknown[],legacy=false;
-  if(/\.json$/i.test(label)||/^[\s]*[\[{]/.test(text)){
+  if(/\.json$/i.test(label)||text.trimStart().startsWith("[")||text.trimStart().startsWith("{")){
     const data:unknown=JSON.parse(text);
     if(Array.isArray(data))raw=data;
     else if(record(data)){

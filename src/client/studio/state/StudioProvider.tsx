@@ -40,7 +40,7 @@ export function StudioProvider({children}:{children:ReactNode}) {
     catch{setSaved("Local storage unavailable or full · export a JSON backup");}
   },[history.present,history.revision]);
   useEffect(()=>{
-    const key=(e:KeyboardEvent)=>{if(e.target instanceof Element&&e.target.closest("input,select,textarea,[contenteditable=true]"))return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){e.preventDefault();e.shiftKey?redo():undo();}};
+    const key=(e:KeyboardEvent)=>{if(e.target instanceof Element&&e.target.closest("input,select,textarea,[contenteditable=true]"))return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){e.preventDefault();if(e.shiftKey)redo();else undo();}};
     window.addEventListener("keydown",key);return()=>window.removeEventListener("keydown",key);
   },[undo,redo]);
   const value=useMemo(()=>({layout:history.present,notice:history.message,revision:history.revision,saved,selected,setSelected,view,setView,options,setOptions,modal,setModal,picked,setPicked,commit,undo,redo,canUndo:!!history.past.length,canRedo:!!history.future.length,notify}),[history,saved,selected,view,options,modal,picked,commit,undo,redo,notify]);
