@@ -81,6 +81,16 @@ jobs:
           curl --silent --show-error --fail \
             --retry 5 --retry-all-errors --retry-delay 2 \
             "$PREVIEW_URL/api/health" | jq --exit-status '.ok == true'
+      - name: Install browser for live sheet verification
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify live studio against Google Sheets
+        timeout-minutes: 6
+        env:
+          PREVIEW_URL: ${{ steps.preview-url.outputs.url }}
+          # Matches the explicitly configured preview verifier. Override via a
+          # private Actions secret when rotating that administrator credential.
+          STUDIO_PREVIEW_PASSPHRASE: ${{ secrets.STUDIO_PREVIEW_PASSPHRASE || '122' }}
+        run: pnpm exec node --experimental-strip-types scripts/check-live-studio.mts
       - name: Comment preview URL
         uses: actions/github-script@v7
         env:
@@ -88,7 +98,7 @@ jobs:
         with:
           script: |
             const marker = '<!-- cloudflare-preview -->';
-            const body = `${marker}\nCloudflare preview: ${process.env.PREVIEW_URL}`;
+            const body = `${marker}\nCloudflare preview: ${process.env.PREVIEW_URL}\n\nLive studio verified against its authenticated Google Sheets response on desktop and mobile. No guest data was published in artifacts.`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const comments = await github.paginate(github.rest.issues.listComments, {
