@@ -27,12 +27,13 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-async function postJson<T>(path: string, body?: unknown): Promise<T> {
+async function postJson<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, {
     method: "POST",
     credentials: "include",
     headers: body === undefined ? undefined : { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
   });
   if (!response.ok) throw new ApiError(response.status, response.statusText);
   return response.status === 204 ? (undefined as T) : (response.json() as Promise<T>);
@@ -70,8 +71,8 @@ export const weddingApi = {
       `/api/rsvp/${encodeURIComponent(token)}`,
       body,
     ),
-  adminLogin: (passphrase: string) =>
-    postJson<void>("/api/admin/login", { passphrase }),
+  adminLogin: (passphrase: string, signal?: AbortSignal) =>
+    postJson<void>("/api/admin/login", { passphrase }, signal),
   adminLogout: () => postJson<void>("/api/admin/logout"),
   adminSync: () => postJson<void>("/api/admin/sync"),
   adminSummary: (lang: Lang) =>

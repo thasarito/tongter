@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Link, Route, Routes } from "react-router";
+import { BrowserRouter, Route, Routes } from "react-router";
 import { LanguageProvider } from "./app/LanguageProvider";
 import { GroupInviteRoute, HomeRoute, PersonalInviteRoute, SeatRoute } from "./routes/GuestRoutes";
 import { SearchRoute } from "./routes/SearchRoute";
@@ -17,9 +17,6 @@ function StudioRoute() {
   const { lang } = useLanguage();
   return <Suspense fallback={<LoadingRoute lang={lang} />}><AdminStudioRoute /></Suspense>;
 }
-function AdminDashboardRoute() {
-  return <><nav aria-label="Administrator tools" className="mx-auto flex max-w-5xl justify-end px-6 pt-6"><Link to="/admin/studio" className="rounded-full border border-line px-4 py-2 text-sm text-gold">Glass House seating studio →</Link></nav><AdminRoute /></>;
-}
 
 export default function App() {
   return (
@@ -32,7 +29,7 @@ export default function App() {
           <Route path="/rsvp/:token" element={<GroupInviteRoute />} />
           <Route path="/seat/:token" element={<SeatRoute />} />
           <Route path="/debug/venue" element={<VenueRoute />} />
-          <Route path="/admin" element={<AdminDashboardRoute />} />
+          <Route path="/admin" element={<AdminRoute />} />
           <Route path="/admin/qr" element={<AdminQrRoute />} />
           <Route path="/admin/studio" element={<StudioRoute />} />
           <Route path="*" element={<NotFoundRoute />} />

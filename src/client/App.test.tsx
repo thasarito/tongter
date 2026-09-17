@@ -104,6 +104,7 @@ describe("App routing", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Admin" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Enter Passcode" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Administrator tools" })).not.toBeInTheDocument();
   });
 });
