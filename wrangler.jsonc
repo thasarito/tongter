@@ -9,7 +9,7 @@
   "routes": [{"pattern": "warissara.thasarito.com/*", "zone_name": "thasarito.com"}],
   "vars": {
     // Requested server-side verifier; the session-signing secret remains separate.
-    "ADMIN_PASSPHRASE_HASH": "pbkdf2-sha256$100000$9bdff9b394f219b6786dc1ea771ba7c3$34d9acc60aa9a5a6a7c2886369f4ff6bf7763881164463a9898e312006545ddf"
+    "ADMIN_PASSPHRASE_HASH": "pbkdf2-sha256$100000$15204728642d1090807d90face0288a0$edc16e8aa677e397542d3c2a356e1dab4d93faf5cf1e3e6c9fdc97b1cda1667e"
   },
   "durable_objects": {"bindings": [{"name":"STUDIO_WRITER","class_name":"StudioSheetWriter","script_name":"warissara-studio-writer"}]},
   "env": {"test": {"durable_objects":{"bindings":[]}}},

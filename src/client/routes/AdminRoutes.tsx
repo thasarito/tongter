@@ -1,42 +1,13 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import QRCode from "qrcode";
 import { weddingApi } from "@/client/api/client";
 import { useLanguage } from "@/client/app/LanguageProvider";
 import { useApiResource } from "@/client/app/useApiResource";
+import { AdminPasscodeScreen } from "@/client/auth/AdminPasscodeScreen";
 import { event } from "@/shared/event-config";
 import type { AdminView, QrSheetView } from "@/shared/views";
 import { ErrorRoute, LoadingRoute } from "./RouteState";
-
-function AdminLogin({ onLogin }: { onLogin: () => void }) {
-  const [error, setError] = useState(false);
-  const [pending, setPending] = useState(false);
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setPending(true);
-    setError(false);
-    try {
-      const data = new FormData(event.currentTarget);
-      await weddingApi.adminLogin(String(data.get("passphrase") ?? ""));
-      onLogin();
-    } catch {
-      setError(true);
-    } finally {
-      setPending(false);
-    }
-  };
-  return (
-    <div className="mx-auto max-w-sm px-6 py-20">
-      <h1 className="font-display text-3xl text-ink">Admin</h1>
-      <form onSubmit={submit} className="mt-6">
-        <label htmlFor="passphrase" className="text-xs uppercase tracking-[0.15em] text-muted">Passphrase</label>
-        <input id="passphrase" name="passphrase" type="password" autoComplete="current-password" required className="mt-2 w-full rounded-lg border border-line bg-paper px-4 py-3 text-sm outline-none focus:border-gold" />
-        {error && <p role="alert" className="mt-3 text-sm text-blush-deep">Incorrect passphrase.</p>}
-        <button type="submit" disabled={pending} className="mt-5 w-full rounded-full bg-ink px-6 py-3 text-sm text-cream transition hover:bg-gold disabled:opacity-60">{pending ? "Checking…" : "Sign in"}</button>
-      </form>
-    </div>
-  );
-}
 
 function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return <div className="rounded-xl border border-line bg-paper px-5 py-4"><p className="text-xs uppercase tracking-[0.15em] text-muted">{label}</p><p className="mt-2 font-display text-3xl text-ink">{value}</p>{hint && <p className="mt-1 text-xs text-muted">{hint}</p>}</div>;
@@ -70,9 +41,9 @@ export function AdminRoute() {
   const [revision, setRevision] = useState(0);
   const resource = useApiResource(`admin:${lang}:${revision}`, () => weddingApi.adminSummary(lang));
   if (resource.state === "loading") return <LoadingRoute lang={lang} />;
-  if (resource.state === "unauthorized") return <AdminLogin onLogin={() => setRevision((value) => value + 1)} />;
+  if (resource.state === "unauthorized") return <AdminPasscodeScreen onLogin={() => setRevision((value) => value + 1)} />;
   if (resource.state !== "ready") return <ErrorRoute lang={lang} />;
-  return <Dashboard view={resource.data} refresh={async () => { await weddingApi.adminSync(); setRevision((value) => value + 1); }} logout={async () => { await weddingApi.adminLogout(); setRevision((value) => value + 1); }} />;
+  return <><nav aria-label="Administrator tools" className="mx-auto flex max-w-5xl justify-end px-6 pt-6"><Link to="/admin/studio" className="rounded-full border border-line px-4 py-2 text-sm text-gold">Glass House seating studio →</Link></nav><Dashboard view={resource.data} refresh={async () => { await weddingApi.adminSync(); setRevision((value) => value + 1); }} logout={async () => { await weddingApi.adminLogout(); setRevision((value) => value + 1); }} /></>;
 }
 
 function QrCards({ view }: { view: QrSheetView }) {
@@ -90,7 +61,7 @@ export function AdminQrRoute() {
   const [revision, setRevision] = useState(0);
   const resource = useApiResource(`qr:${lang}:${revision}`, () => weddingApi.adminQr(lang));
   if (resource.state === "loading") return <LoadingRoute lang={lang} />;
-  if (resource.state === "unauthorized") return <AdminLogin onLogin={() => setRevision((value) => value + 1)} />;
+  if (resource.state === "unauthorized") return <AdminPasscodeScreen onLogin={() => setRevision((value) => value + 1)} />;
   if (resource.state !== "ready") return <ErrorRoute lang={lang} />;
   return <QrCards view={resource.data} />;
 }

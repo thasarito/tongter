@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Locator } from "@playwright/test";
+import { enterAdminPasscode } from "./admin-login";
 import { normalizeLayout } from "../../src/client/studio/model/schema";
 import { applyMutation, type StudioMutation } from "../../src/shared/studio-mutations";
 async function open(page:Page){
@@ -7,7 +8,7 @@ async function open(page:Page){
   const snapshot=()=>({status:"ok",source:"Google Sheets",layout,revision:String(revision),fetchedAt:Date.now()});
   await page.route("**/api/admin/studio/layout",route=>route.fulfill({json:snapshot()}));
   await page.route("**/api/admin/studio/mutations",async route=>{const op=route.request().postDataJSON() as StudioMutation;writes.push(op);layout=applyMutation(layout,op);revision++;await route.fulfill({json:{...snapshot(),operationId:op.id}});});
-  await page.goto("/admin/studio");await page.getByLabel("Administrator passphrase").fill("local-e2e-passphrase");await page.getByRole("button",{name:"Open studio",exact:true}).click();await expect(page.locator(".studio-plan .studio-name-badge")).toHaveCount(1);return {writes,errors,read:()=>layout};
+  await page.goto("/admin/studio");await enterAdminPasscode(page);await expect(page.locator(".studio-plan .studio-name-badge")).toHaveCount(1);return {writes,errors,read:()=>layout};
 }
 const panel=(page:Page)=>page.locator(".studio-sidebar"),opacity=(el:Locator)=>el.evaluate(e=>Number(getComputedStyle(e).opacity));
 async function prepare(page:Page){await page.getByRole("button",{name:"Guests panel",exact:true}).click();await page.getByRole("searchbox",{name:"Search guest book"}).fill("Waiting");await page.getByLabel("Original group",{exact:true}).selectOption("family");const source=page.locator('.studio-roster [data-guest-drag="waiting-12"]');await source.scrollIntoViewIfNeeded();return source;}

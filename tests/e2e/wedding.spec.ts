@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { enterAdminPasscode } from "./admin-login";
 
 test("serves the save-the-date landing and Worker API from one origin", async ({ page }) => {
   const health = await page.request.get("/api/health");
@@ -164,8 +165,7 @@ test("submits a partial group RSVP and reveals the seat", async ({ page }) => {
 
 test("authenticates the admin dashboard and opens QR cards", async ({ page }) => {
   await page.goto("/admin");
-  await page.getByLabel("Passphrase").fill("local-e2e-passphrase");
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await enterAdminPasscode(page);
   await expect(page.getByRole("heading", { name: "RSVP dashboard" })).toBeVisible();
   await page.getByRole("link", { name: /QR cards for all/i }).click();
   await expect(page.getByRole("heading", { name: "QR cards" })).toBeVisible();

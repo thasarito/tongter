@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { enterAdminPasscode } from "./admin-login";
 import { normalizeLayout } from "../../src/client/studio/model/schema";
 test.use({launchOptions:{args:["--enable-unsafe-swiftshader"]}});
 test.describe.configure({timeout:60_000});
@@ -8,7 +9,7 @@ async function open(page:Page){
   const writes:string[]=[];
   await page.route("**/api/admin/studio/layout",route=>route.fulfill({json:{status:"ok",source:"Google Sheets",layout,revision:"mobile-test",fetchedAt:Date.now()}}));
   await page.route("**/api/admin/studio/mutations",async route=>{writes.push(route.request().postData()??"");await route.fulfill({status:409,json:{error:{message:"Camera gestures must not write seating data."}}});});
-  await page.goto("/admin/studio");await page.getByLabel("Administrator passphrase").fill("local-e2e-passphrase");await page.getByRole("button",{name:"Open studio",exact:true}).click();await expect(page.locator(".studio-plan .studio-name-badge")).toHaveCount(2);
+  await page.goto("/admin/studio");await enterAdminPasscode(page);await expect(page.locator(".studio-plan .studio-name-badge")).toHaveCount(2);
   await chooseView(page,"3D model");await expect(page.locator(".studio-three-view canvas")).toBeVisible();await expect(page.locator('.studio-seat-name-label[data-guest-drag="mobile-alice"]')).toBeVisible({timeout:20_000});return writes;
 }
 const viewportBounds=async(page:Page)=>{const bounds=await page.locator(".studio-three-view canvas").boundingBox(),screen=page.viewportSize()!;expect(bounds!.x).toBeLessThanOrEqual(1);expect(bounds!.y).toBeLessThanOrEqual(1);expect(bounds!.width).toBeGreaterThanOrEqual(screen.width-2);expect(bounds!.height).toBeGreaterThanOrEqual(screen.height-2);};

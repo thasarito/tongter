@@ -1,4 +1,5 @@
 import { expect,test,type Locator,type Page } from "@playwright/test";
+import { enterAdminPasscode } from "./admin-login";
 import { normalizeLayout } from "../../src/client/studio/model/schema";
 import { applyMutation,type StudioMutation } from "../../src/shared/studio-mutations";
 test.use({launchOptions:{args:["--enable-unsafe-swiftshader"]}});
@@ -14,7 +15,7 @@ async function openStudio(page:Page,scenario:"normal"|"conflict"|"lost"="normal"
     if(scenario==="lost"&&operations.length===1){await route.abort("failed");return;}
     await route.fulfill({json:{...snapshot(),operationId:operation.id}});
   });
-  await page.goto("/admin/studio");await page.getByLabel("Administrator passphrase").fill("local-e2e-passphrase");await page.getByRole("button",{name:"Open studio",exact:true}).click();
+  await page.goto("/admin/studio");await enterAdminPasscode(page);
   await expect(page.locator('.studio-plan .studio-name-badge')).toHaveCount(2);return {operations,read:()=>layout};
 }
 const approve=(page:Page)=>page.locator("[data-sheet-confirmation]").getByRole("button",{name:"Confirm",exact:true}).click();

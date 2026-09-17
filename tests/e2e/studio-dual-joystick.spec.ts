@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { enterAdminPasscode } from "./admin-login";
 import { normalizeLayout } from "../../src/client/studio/model/schema";
 
 // Use direct WebTouch injection so touchEnd can release a specified contact.
@@ -17,8 +18,7 @@ async function openWalk(page: Page) {
   await page.route("**/api/admin/studio/layout", route => route.fulfill({ json: { status: "ok", source: "Google Sheets", layout, revision: "dual-test", fetchedAt: Date.now() } }));
   await page.route("**/api/admin/studio/mutations", async route => { writes.push(route.request().postData() ?? ""); await route.fulfill({ status: 409, json: { error: { message: "Camera controls must not write seating data." } } }); });
   await page.goto("/admin/studio");
-  await page.getByLabel("Administrator passphrase").fill("local-e2e-passphrase");
-  await page.getByRole("button", { name: "Open studio", exact: true }).click();
+  await enterAdminPasscode(page);
   await expect(page.locator(".studio-plan .studio-name-badge")).toHaveCount(1);
   await chooseView(page, "Walk inside");
   await expect(page.locator(".studio-three-view canvas")).toBeVisible();

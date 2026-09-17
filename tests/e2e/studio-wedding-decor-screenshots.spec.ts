@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { enterAdminPasscode } from "./admin-login";
 import { defaultLayout } from "../../src/client/studio/model/defaults";
 
 test.use({ launchOptions: { args: ["--enable-unsafe-swiftshader"] } });
@@ -83,8 +84,7 @@ test("capture decorated reference venue without accessing private guest data", a
   });
   await page.setViewportSize({ width: 1560, height: 1080 });
   await page.goto("/admin/studio");
-  await page.getByLabel("Administrator passphrase").fill("local-e2e-passphrase");
-  await page.getByRole("button", { name: "Open studio", exact: true }).click();
+  await enterAdminPasscode(page);
   await expect(page.locator(".studio-plan")).toBeVisible();
   expect(layout.guestList).toHaveLength(0);
   const started = Date.now();

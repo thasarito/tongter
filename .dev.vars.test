@@ -1,3 +1,5 @@
 MOCK_SHEET=1
-ADMIN_PASSPHRASE=local-e2e-passphrase
+# Synthetic local-only PIN; never the deployed administrator credential.
+ADMIN_PASSPHRASE=1357
+ADMIN_PASSPHRASE_HASH=
 ADMIN_SESSION_SECRET=local-e2e-session-secret-at-least-32-characters
