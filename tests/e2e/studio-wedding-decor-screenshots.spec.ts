@@ -41,10 +41,7 @@ async function capture(page: Page, info: TestInfo, name: string, canvasOnly = tr
     }
     return colors.size;
   }), { timeout: 20_000 }).toBeGreaterThan(3);
-  // Wait for the next invalidated frame after applying the deterministic pose.
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-  // The same real WebGL canvas export used by the studio's PNG button: no UI,
-  // image synthesis, cropping, furniture replacement, or injected camera code.
   const body = canvasOnly
     ? Buffer.from((await canvas.evaluate((node: HTMLCanvasElement) => node.toDataURL("image/png"))).split(",")[1], "base64")
     : await page.screenshot({ animations: "disabled" });
@@ -57,7 +54,9 @@ test("capture decorated reference venue without accessing private guest data", a
   test.skip(isMobile, "Desktop project also captures the responsive portrait viewport.");
   const layout = defaultLayout();
   const errors: string[] = [], writes: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
+  page.on("pageerror", error => { errors.push(error.message); console.error("decor pageerror:", error.message); });
+  page.on("console", message => { if (message.type() === "error") console.error("decor browser:", message.text()); });
+  page.on("requestfailed", request => console.error("decor request failed:", request.url(), request.failure()?.errorText));
   await page.route("**/api/admin/studio/layout", route => route.fulfill({ json: {
     status: "ok", source: "Google Sheets", layout,
     revision: "public-reference-preview", fetchedAt: Date.now(),
@@ -66,16 +65,26 @@ test("capture decorated reference venue without accessing private guest data", a
     writes.push(route.request().method());
     await route.fulfill({ status: 409, json: { error: { message: "Screenshot capture must not write seating data." } } });
   });
-  // PDF pages 3–5 are 780 × 540 pt (13:9), verified from the source page boxes.
   await page.setViewportSize({ width: 1560, height: 1080 });
   await page.goto("/admin/studio");
   await page.getByLabel("Administrator passphrase").fill("local-e2e-passphrase");
   await page.getByRole("button", { name: "Open studio", exact: true }).click();
   await expect(page.locator(".studio-plan")).toBeVisible();
   expect(layout.guestList).toHaveLength(0);
+  const started = Date.now();
   await chooseView(page, "3D model");
   const canvas = page.locator(".studio-three-view canvas");
-  await expect(canvas).toHaveAttribute("data-camera-preset", "overview");
+  try {
+    // The detailed reference fixture compiles physical cloth and instanced flower
+    // shaders on CPU SwiftShader. Wait for actual controls readiness, not a sleep.
+    await expect(canvas).toHaveAttribute("data-camera-preset", "overview", { timeout: 30_000 });
+  } catch (cause) {
+    console.error("decor startup diagnostics:", JSON.stringify({ errors, text: await page.locator("body").innerText() }));
+    await page.screenshot({ path: info.outputPath("decor-startup-failure.png") });
+    throw cause;
+  }
+  console.log("decor scene ready in ms:", Date.now() - started);
+  expect(errors).toEqual([]);
   await capture(page, info, "wedding-decor-desktop-overview", false);
   const layers = await layersPanel(page);
   await layers.locator("label").filter({ hasText: "Roof" }).locator("select").selectOption("frame");
@@ -91,7 +100,6 @@ test("capture decorated reference venue without accessing private guest data", a
   await chooseSetup(page, "cake-table", 5);
   const c = await capture(page, info, "wedding-decor-cake-table");
   expect(a.equals(b)).toBe(false); expect(b.equals(c)).toBe(false);
-
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(canvas).toHaveAttribute("data-pdf-camera-page", "5");
   await capture(page, info, "wedding-decor-mobile");
