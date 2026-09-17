@@ -17,11 +17,13 @@ function FlowerInstances({instances,leaves=false}:{instances:Instance[];leaves?:
     mesh.computeBoundingSphere();invalidate();
   },[instances,invalidate]);
   if(!instances.length)return null;
-  return <instancedMesh ref={ref} name={leaves?"decor-leaves":"decor-petals"} args={[undefined,undefined,instances.length]} raycast={noDecorRaycast} castShadow>
-    <sphereGeometry args={[1,6,4]}/><meshStandardMaterial roughness={.93}/>
+  // Tiny petals do not need their own shadow-map pass. Their 24-triangle
+  // ellipsoids preserve the rosette silhouette without the previous 36 faces.
+  return <instancedMesh ref={ref} name={leaves?"decor-leaves":"decor-petals"} args={[undefined,undefined,instances.length]} raycast={noDecorRaycast}>
+    <sphereGeometry args={[1,6,3]}/><meshStandardMaterial roughness={.93}/>
   </instancedMesh>;
 }
-/** Thousands of small petals in two batched draws per arrangement. No frames or lights per flower. */
+/** Small petals in two batched draws per arrangement. No meshes or lights per flower. */
 export function Flowers({clumps}:{clumps:FlowerClump[]}){
   const {petals,leaves}=useMemo(()=>{
     const petals:Instance[]=[],leaves:Instance[]=[];
@@ -30,7 +32,6 @@ export function Flowers({clumps}:{clumps:FlowerClump[]}){
       for(const [i,head] of flowerHeads(clump).entries()){
         const [x,y,z]=head.position,r=head.radius;
         const tint=colors[Math.min(3,Math.floor(head.tint*4))];
-        // A flower is a rosette of cupped petals, not one large sphere.
         for(let p=0;p<6;p++){
           const a=head.turn+p*Math.PI/3,dx=Math.cos(a),dy=Math.sin(a);
           petals.push({matrix:matrix([x+dx*r*.46,y+dy*r*.46,z+.008],[r*.62,r*.35,r*.18],[.25*Math.sin(head.turn),.22*Math.cos(head.turn),a]),color:tint});

@@ -3,7 +3,9 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { defaultLayout } from "../../src/client/studio/model/defaults";
 
 test.use({ launchOptions: { args: ["--enable-unsafe-swiftshader"] } });
-test.describe.configure({ timeout: 120_000 });
+// Six full-scene captures, control changes and a viewport resize share one test.
+// Individual readiness/pixel assertions still have their own bounded timeouts.
+test.describe.configure({ timeout: 180_000 });
 
 async function chooseView(page: Page, name: string) {
   await page.getByRole("button", { name: "View panel", exact: true }).click();
@@ -50,6 +52,20 @@ async function capture(page: Page, info: TestInfo, name: string, canvasOnly = tr
   return body;
 }
 
+async function expectVisibleWordmark(page: Page) {
+  // Same regression assertion as the separate wordmark scenario, consolidated
+  // here to avoid compiling a second detailed scene beside the gesture tests.
+  // Region is wholly on the board, away from trusses, flowers and cloth.
+  await expect.poll(() => page.locator(".studio-three-view canvas").evaluate((node: HTMLCanvasElement) => {
+    const gl = node.getContext("webgl2"); if (!gl || gl.isContextLost()) return 0;
+    const w = Math.floor(node.width * .08), h = Math.floor(node.height * .04), pixels = new Uint8Array(w * h * 4);
+    gl.readPixels(Math.floor(node.width * .46), Math.floor(node.height * (1 - .465)), w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    let ink = 0;
+    for (let i = 0; i < pixels.length; i += 4) if (pixels[i] < 70 && pixels[i + 1] < 70 && pixels[i + 2] < 70 && pixels[i + 3] > 0) ink++;
+    return ink;
+  }), { timeout: 20_000 }).toBeGreaterThan(12);
+}
+
 test("capture decorated reference venue without accessing private guest data", async ({ page, isMobile }, info) => {
   test.skip(isMobile, "Desktop project also captures the responsive portrait viewport.");
   const layout = defaultLayout();
@@ -75,8 +91,6 @@ test("capture decorated reference venue without accessing private guest data", a
   await chooseView(page, "3D model");
   const canvas = page.locator(".studio-three-view canvas");
   try {
-    // The detailed reference fixture compiles physical cloth and instanced flower
-    // shaders on CPU SwiftShader. Wait for actual controls readiness, not a sleep.
     await expect(canvas).toHaveAttribute("data-camera-preset", "overview", { timeout: 30_000 });
   } catch (cause) {
     console.error("decor startup diagnostics:", JSON.stringify({ errors, text: await page.locator("body").innerText() }));
@@ -94,6 +108,7 @@ test("capture decorated reference venue without accessing private guest data", a
   await page.getByRole("button", { name: "Match PDF framing", exact: true }).click();
   await expect(canvas).toHaveAttribute("data-camera-preset", "pdf");
   await expect(canvas).toHaveAttribute("data-pdf-camera-page", "3");
+  await expectVisibleWordmark(page);
   const a = await capture(page, info, "wedding-decor-stage");
   await chooseSetup(page, "head-table", 4);
   const b = await capture(page, info, "wedding-decor-head-table");
