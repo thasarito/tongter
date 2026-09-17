@@ -16,7 +16,12 @@ async function chooseSetup(page: Page, mode: string) {
     await layers.locator("summary").click();
   }
   await expect(page.getByLabel("Wedding decorations", { exact: true })).toBeChecked();
-  await page.getByLabel("Stage setup", { exact: true }).selectOption(mode);
+  // This wrapping label also contains the option text, so an exact accessible
+  // name of "Stage setup" does not match the existing native select.
+  const setup = layers.locator("label").filter({ hasText: "Stage setup" }).locator("select");
+  await expect(setup).toBeVisible();
+  await setup.selectOption(mode);
+  await expect(setup).toHaveValue(mode);
   await page.getByRole("button", { name: "Close planning tools", exact: true }).click();
 }
 
@@ -84,7 +89,7 @@ test("capture decorated reference venue without accessing private guest data", a
   await page.getByRole("button", { name: "More panel", exact: true }).click();
   const layers = page.locator(".studio-layer-settings");
   if (!(await layers.evaluate(node => (node as HTMLDetailsElement).open))) await layers.locator("summary").click();
-  await page.getByLabel("Stage setup", { exact: true }).scrollIntoViewIfNeeded();
+  await layers.locator("label").filter({ hasText: "Stage setup" }).locator("select").scrollIntoViewIfNeeded();
   await capture(page, info, "wedding-decor-mobile-controls");
   expect(writes).toHaveLength(0);
   expect(errors).toEqual([]);
