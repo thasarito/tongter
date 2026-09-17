@@ -3,7 +3,7 @@
  * Helpers are renderer-independent and never modify sheet-backed objects. */
 export type Vec3 = [number, number, number];
 export interface StageDimensions { x: number; z: number; w: number; d: number; h: number; rotation: number }
-export const DECOR_COLORS = { carpet: "#513a24", riser: "#65492d", fabric: "#f7f4ee", board: "#e8e6e2" } as const;
+export const DECOR_COLORS = { carpet: "#3a2f1f", riser: "#493b2d", fabric: "#f7f4ee", board: "#c9c9cb" } as const;
 export const noDecorRaycast = () => {};
 
 export function stageTiers(stage: Pick<StageDimensions, "w" | "d" | "h">) {
@@ -23,20 +23,20 @@ export function decorTransform(stage: StageDimensions): { position: Vec3; rotati
   return { position: decorPosition(stage, [0, 0, 0]), rotation: [0, -Math.PI / 2 - stage.rotation * Math.PI / 180, 0],
     scale: [widthScale, Math.min(1.25, widthScale), stage.w / 2.55] };
 }
-export interface CurtainShape { width: number; height: number; lean?: number; pool?: number }
-export function curtainPoint(u: number, v: number, { width, height, lean = 0, pool = .4 }: CurtainShape): Vec3 {
+export interface CurtainShape { width: number; height: number; lean?: number; pool?: number; gather?: number }
+export function curtainPoint(u: number, v: number, { width, height, lean = 0, pool = .4, gather = .65 }: CurtainShape): Vec3 {
   const fold = Math.cos(u * Math.PI * 22 + .25 * Math.sin(v * 6));
   const pooling = Math.max(0, (v - .87) / .13);
-  return [(u - .5) * width * (.65 + .35 * v) + lean * v * v,
+  return [(u - .5) * width * (gather + (1 - gather) * v) + lean * v * v,
     Math.max(.012, height * (1 - v) - pooling * .10) + pooling * .012 * (1 + fold),
-    fold * .035 * (.65 + v) + pool * pooling * pooling];
+    fold * .020 * (.65 + v) + pool * pooling * pooling];
 }
 export interface SwagShape { width: number; height: number; sag: number; band?: number; tilt?: number }
 export function swagPoint(u: number, v: number, { width, height, sag, band = .24, tilt = 0 }: SwagShape): Vec3 {
   const hang = Math.sin(Math.PI * u), pleat = Math.sin(v * Math.PI * 8 + u * 2);
   return [(u - .5) * width,
     height + tilt * (u - .5) - sag * Math.pow(hang, .78) - band * v * (.12 + .88 * hang),
-    .055 * pleat * hang + .12 * hang * hang + .06 * v];
+    .012 * pleat * hang + .12 * hang * hang + .06 * v];
 }
 export function roundClothPoint(u: number, v: number, radius = .56, height = .78): Vec3 {
   const angle = u * Math.PI * 2, fold = Math.cos(angle * 32);

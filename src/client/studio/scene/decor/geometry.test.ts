@@ -33,6 +33,10 @@ describe("PDF decoration geometry",()=>{
     expect(Math.max(...depths)-Math.min(...depths)).toBeGreaterThan(.04);
     expect(curtainPoint(.5,1,shape)[2]).toBeGreaterThan(.30);
   });
+  it("covers the full table edge rather than gathering its skirt at the top",()=>{
+    expect(curtainPoint(0,0,{width:2.2,height:.78,gather:1})[0]).toBe(-1.1);
+    expect(curtainPoint(1,0,{width:2.2,height:.78,gather:1})[0]).toBe(1.1);
+  });
   it("hangs the center of each swag below the anchors without a solid triangle",()=>{
     const shape={width:3.15,height:3.58,sag:2.56,band:.18};
     expect(swagPoint(.5,.5,shape)[1]).toBeLessThan(swagPoint(0,.5,shape)[1]-2);
