@@ -1,45 +1,75 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type PointerEvent } from "react";
 import { NEUTRAL_JOYSTICK, sampleJoystick } from "./joystick";
 import type { WalkMotion } from "./walk-motion";
-const INPUT="joystick";
+import "../styles/walk-controls.css";
 
-/** A single captured finger moves; another finger is free to look on the canvas. */
-export function WalkJoystick({motion,disabled=false,resetVersion=0}:{motion:WalkMotion;disabled?:boolean;resetVersion?:number}) {
-  const base=useRef<HTMLDivElement>(null),pointer=useRef<number|null>(null);
-  const [thumb,setThumb]=useState(NEUTRAL_JOYSTICK),[active,setActive]=useState(false);
-  const release=useCallback((immediate=false)=>{
-    const id=pointer.current;pointer.current=null;
-    motion.release(INPUT);if(immediate)motion.stop();
-    setThumb(NEUTRAL_JOYSTICK);setActive(false);
-    if(id!==null&&base.current?.hasPointerCapture(id))base.current.releasePointerCapture(id);
-  },[motion]);
-  useEffect(()=>{if(disabled)release(true);},[disabled,release]);
-  useEffect(()=>{release(true);},[resetVersion,release]);
-  useEffect(()=>{
-    const stop=()=>release(true),visibility=()=>{if(document.hidden)stop();};
-    window.addEventListener("blur",stop);window.addEventListener("resize",stop);document.addEventListener("visibilitychange",visibility);
-    return()=>{motion.release(INPUT);window.removeEventListener("blur",stop);window.removeEventListener("resize",stop);document.removeEventListener("visibilitychange",visibility);};
-  },[motion,release]);
-  function sample(e:PointerEvent<HTMLDivElement>){
-    const r=e.currentTarget.getBoundingClientRect(),radius=Math.max(1,Math.min(r.width,r.height)/2-25);
-    const value=sampleJoystick(e.clientX-r.left-r.width/2,e.clientY-r.top-r.height/2,radius);
-    motion.setAnalog(INPUT,value.right,value.forward);setThumb(value);
+type JoystickMode = "move" | "look";
+/** Each stick owns one pointer and one input channel, including non-primary touches. */
+export function WalkJoystick({ motion, mode = "move", disabled = false }: { motion: WalkMotion; mode?: JoystickMode; disabled?: boolean }) {
+  const base = useRef<HTMLDivElement>(null), pointer = useRef<number | null>(null), id = useId();
+  const input = `joystick:${id}`, helpId = `${id}-help`;
+  const [thumb, setThumb] = useState(NEUTRAL_JOYSTICK), [active, setActive] = useState(false);
+  const releaseInput = useCallback(() => {
+    if (mode === "look") motion.releaseLook(input);
+    else motion.release(input, true);
+  }, [motion, mode, input]);
+  const release = useCallback(() => {
+    const captured = pointer.current;
+    pointer.current = null;
+    releaseInput();
+    setThumb(NEUTRAL_JOYSTICK); setActive(false);
+    if (captured !== null && base.current?.hasPointerCapture(captured)) base.current.releasePointerCapture(captured);
+  }, [releaseInput]);
+  // Global interruptions clear both channels; an ordinary release/cancel clears
+  // only this stick. Losing one finger must not stop the other thumb or keyboard.
+  const stop = useCallback(() => { release(); motion.stop(); }, [motion, release]);
+  useEffect(() => { if (disabled) stop(); }, [disabled, stop]);
+  useEffect(() => {
+    const element = base.current;
+    const visibility = () => { if (document.hidden) stop(); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") stop(); };
+    window.addEventListener("blur", stop); window.addEventListener("resize", stop);
+    document.addEventListener("visibilitychange", visibility); document.addEventListener("keydown", escape);
+    return () => {
+      window.removeEventListener("blur", stop); window.removeEventListener("resize", stop);
+      document.removeEventListener("visibilitychange", visibility); document.removeEventListener("keydown", escape);
+      const captured = pointer.current;
+      pointer.current = null;
+      releaseInput();
+      if (captured !== null && element?.hasPointerCapture(captured)) element.releasePointerCapture(captured);
+    };
+  }, [stop, releaseInput]);
+  function sample(event: PointerEvent<HTMLDivElement>) {
+    const bounds = event.currentTarget.getBoundingClientRect(), radius = Math.max(1, Math.min(bounds.width, bounds.height) / 2 - 25);
+    const value = sampleJoystick(event.clientX - bounds.left - bounds.width / 2, event.clientY - bounds.top - bounds.height / 2, radius);
+    if (mode === "look") motion.setLookAnalog(input, value.right, value.forward);
+    else motion.setAnalog(input, value.right, value.forward);
+    setThumb(value);
   }
-  function down(e:PointerEvent<HTMLDivElement>){
-    if(disabled||!motion.enabled||pointer.current!==null||e.button!==0)return;
-    e.preventDefault();e.stopPropagation();e.currentTarget.focus({preventScroll:true});
-    pointer.current=e.pointerId;e.currentTarget.setPointerCapture(e.pointerId);setActive(true);sample(e);
+  function down(event: PointerEvent<HTMLDivElement>) {
+    if (disabled || !motion.enabled || pointer.current !== null || event.button !== 0) return;
+    event.preventDefault(); event.stopPropagation(); event.currentTarget.focus({ preventScroll: true });
+    pointer.current = event.pointerId; event.currentTarget.setPointerCapture(event.pointerId);
+    setActive(true); sample(event);
   }
-  function move(e:PointerEvent<HTMLDivElement>){if(pointer.current!==e.pointerId)return;e.preventDefault();e.stopPropagation();sample(e);}
-  function up(e:PointerEvent<HTMLDivElement>){if(pointer.current===e.pointerId){e.preventDefault();release();}}
-  function cancel(e:PointerEvent<HTMLDivElement>){if(pointer.current===e.pointerId)release(true);}
-  return <div className="studio-joystick-wrap" hidden={disabled} data-studio-ui>
-    <div ref={base} className="studio-joystick" role="group" aria-label="Walk joystick" aria-describedby="studio-joystick-help" tabIndex={0} data-active={active}
+  function move(event: PointerEvent<HTMLDivElement>) {
+    if (pointer.current !== event.pointerId) return;
+    event.preventDefault(); event.stopPropagation(); sample(event);
+  }
+  function up(event: PointerEvent<HTMLDivElement>) {
+    if (pointer.current !== event.pointerId) return;
+    event.preventDefault(); event.stopPropagation(); release();
+  }
+  function cancel(event: PointerEvent<HTMLDivElement>) { if (pointer.current === event.pointerId) release(); }
+  return <div className="studio-joystick-wrap" data-mode={mode} hidden={disabled} data-studio-ui>
+    <div ref={base} className="studio-joystick" role="group" aria-label={mode === "look" ? "Look joystick" : "Walk joystick"} aria-describedby={helpId} tabIndex={0} data-active={active}
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onLostPointerCapture={cancel}
-      onContextMenu={e=>e.preventDefault()} onKeyDown={e=>{if(e.key==="Escape")release(true);}}>
-      <span className="studio-joystick-knob" aria-hidden="true" style={{transform:`translate(${thumb.knobX}px,${thumb.knobY}px)`}}/>
+      onContextMenu={event => event.preventDefault()}>
+      <span className="studio-joystick-knob" aria-hidden="true" style={{ transform: `translate(${thumb.knobX}px,${thumb.knobY}px)` }} />
     </div>
-    <small>MOVE · DRAG SCENE TO LOOK</small>
-    <span id="studio-joystick-help" className="studio-joystick-help">Drag the stick to walk in any direction. Push farther to move faster. Release to stop. Use a second finger on the scene to look around. Keyboard: W A S D or arrow keys, Shift for a faster pace.</span>
+    <small>{mode === "look" ? "LOOK" : "MOVE"}</small>
+    <span id={helpId} className="studio-joystick-help">{mode === "look"
+      ? "Drag right or left to turn, up or down to look vertically. Hold farther from the center to look faster. Release to stop looking. The left stick can keep moving at the same time."
+      : "Drag to walk forward, backward or sideways. Push farther to move faster. Release to stop. Use the right stick to look at the same time. Keyboard: W A S D or arrow keys; Shift for a faster pace."}</span>
   </div>;
 }
