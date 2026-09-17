@@ -18,6 +18,6 @@ it.each([
   render(<LanguageProvider><MemoryRouter>{route()}</MemoryRouter></LanguageProvider>);
   expect(await screen.findByRole("heading", { name: "Enter Passcode" })).toBeVisible();
   expect(screen.getByRole("main").querySelectorAll("[data-passcode-dot]")).toHaveLength(4);
-  for (const digit of "1234567890") expect(screen.getByRole("button", { name: digit, exact: true })).toBeEnabled();
-  expect(screen.getByRole("button", { name: "Cancel", exact: true })).toBeVisible();
+  for (const digit of "1234567890") expect(screen.getByRole("button", { name: digit })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeVisible();
 });
