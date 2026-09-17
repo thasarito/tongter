@@ -66,8 +66,8 @@ test("capture decorated reference venue without accessing private guest data", a
     writes.push(route.request().method());
     await route.fulfill({ status: 409, json: { error: { message: "Screenshot capture must not write seating data." } } });
   });
-  // 4:3, matching the PDF rather than the earlier 3:2 walkthrough screenshots.
-  await page.setViewportSize({ width: 1440, height: 1080 });
+  // PDF pages 3–5 are 780 × 540 pt (13:9), verified from the source page boxes.
+  await page.setViewportSize({ width: 1560, height: 1080 });
   await page.goto("/admin/studio");
   await page.getByLabel("Administrator passphrase").fill("local-e2e-passphrase");
   await page.getByRole("button", { name: "Open studio", exact: true }).click();
