@@ -1,4 +1,4 @@
-export type ViewportAction = "zoom-in" | "zoom-out" | "fit" | "svg" | "png";
+export type ViewportAction = "zoom-in" | "zoom-out" | "fit" | "svg" | "png" | "pdf-reference";
 export type ViewportHandlers = Partial<Record<ViewportAction, () => void>>;
 /** Commands belong to the mounted renderer, not to a second hidden toolbar.
  * No React state, layout mutation or camera remount is needed to move the UI. */

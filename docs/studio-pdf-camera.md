@@ -1,0 +1,9 @@
+# PDF reference framing
+
+In the 3D model, open **View → Match PDF framing**. The camera moves directly in front of the first stage, centered along its width. **More → Scene layers → Stage setup** selects the page 3 stage, page 4 head-table or page 5 cake-table composition. Changing the setup or viewport reapplies the active reference framing. **Fit room** restores the original overview; entering Walk inside retains the normal joystick/entrance experience.
+
+The poses derive position and upward pitch from the stage's current position, rotation and dimensions. Screen-space targets are visually estimated from pages 3–5 of the supplied art-direction PDF: the stage fills approximately 96%, 110% and 106% of a 13:9 frame, respectively; the foreground baseline lies at 87.5%, 95% and 93.5% of frame height. The latter two compositions intentionally crop the stage corners. Portrait view contains the stage width rather than using the PDF's edge crop.
+
+The 68-degree vertical field of view and eye height are fitting choices, not camera metadata supplied by the PDF. This matches composition against existing schematic geometry; it cannot make the venue structure, drapery, floral detail, stage material or furniture identical to the reference. No decoration or seating geometry is changed by this camera adjustment.
+
+The screenshot test uses the actual public UI action instead of holding a movement key for a fixed time. Full-canvas PNG exports omit the controls and HTML labels and use a 1560 × 1080 viewport matching the PDF page boxes (780 × 540 pt, 13:9). Screenshots use the public reference layout and reject all mutation requests. Unit tests project the near-stage corners back into the frame, and cover translated/rotated stages, distinct setup framing, portrait fit and missing stages. The separate documentation branch holds comparison images so publishing them does not change the application commit.
