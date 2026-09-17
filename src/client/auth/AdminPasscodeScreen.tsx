@@ -91,7 +91,7 @@ export function AdminPasscodeScreen({ onLogin }: { onLogin: () => void }) {
   const canDelete = code.length > 0 && !pending;
 
   return (
-    <main ref={screenRef} className="passcode-screen" tabIndex={-1}
+    <main ref={screenRef} className="passcode-screen" lang="en" tabIndex={-1}
       aria-labelledby="passcode-title" onKeyDown={onKeyDown} onPaste={onPaste}>
       <div className="passcode-panel">
         <header className="passcode-header">

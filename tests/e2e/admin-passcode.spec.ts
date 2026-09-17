@@ -7,6 +7,7 @@ test("all protected routes share the uncluttered numeric screen", async ({ page 
     await expect(page.getByRole("heading", { name: "Enter Passcode" })).toBeVisible();
     await expect(page.locator("[data-passcode-dot]")).toHaveCount(4);
     await expect(page.locator("input")).toHaveCount(0);
+    await expect(page.getByRole("main")).toHaveAttribute("lang", "en");
     await expect(page.getByRole("navigation", { name: "Administrator tools" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeVisible();
     await expect(page.locator(".passcode-key")).toHaveCount(10);
@@ -27,7 +28,13 @@ test("cream-and-gold circles fit phones, desktop and landscape without clipping"
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
         keys: Array.from(document.querySelectorAll(".passcode-key"), key => {
           const box = key.getBoundingClientRect();
-          return { x: box.x, y: box.y, width: box.width, height: box.height };
+          const digit = key.querySelector(".passcode-digit")!;
+          const letters = key.querySelector(".passcode-letters");
+          return {
+            x: box.x, y: box.y, width: box.width, height: box.height,
+            digitLeading: parseFloat(getComputedStyle(digit).lineHeight) / parseFloat(getComputedStyle(digit).fontSize),
+            lettersBottomGap: letters ? box.bottom - letters.getBoundingClientRect().bottom : null,
+          };
         }),
       };
     });
@@ -37,6 +44,9 @@ test("cream-and-gold circles fit phones, desktop and landscape without clipping"
     expect(metrics.horizontalOverflow).toBe(false);
     for (const key of metrics.keys) {
       expect(key.width).toBeGreaterThanOrEqual(44);
+      // The site's :lang(th) rule must not stretch the English key labels.
+      expect(key.digitLeading).toBeCloseTo(1, 2);
+      if (key.lettersBottomGap !== null) expect(key.lettersBottomGap).toBeGreaterThanOrEqual(6);
       expect(Math.abs(key.width - key.height)).toBeLessThan(1);
       expect(key.x).toBeGreaterThanOrEqual(0);
       expect(key.y).toBeGreaterThanOrEqual(0);
