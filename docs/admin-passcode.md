@@ -16,9 +16,9 @@ preferences disable the error shake and key transitions.
 
 ## Credential configuration
 
-The requested credential is stored only as the fresh salted PBKDF2-SHA-256
-verifier in `wrangler.jsonc`, using the existing server-side 100,000-iteration
-format. The client sends the entered value to the existing HTTPS login API;
+Server-side authentication uses the fresh salted PBKDF2-SHA-256 verifier in
+`wrangler.jsonc`, using the existing server-side 100,000-iteration format.
+The client sends the entered value to the existing HTTPS login API;
 it does not contain a verifier, expected PIN, or client-side unlock condition.
 `ADMIN_SESSION_SECRET` remains independent. Existing signed sessions retain
 their existing lifetime; rotating the login verifier does not revoke them.
@@ -29,12 +29,14 @@ accepts exactly four digits. Local example/test environments explicitly clear
 the deployed hash and use the synthetic PIN `1357`. Do not reuse that fixture
 in deployment.
 
-Set the GitHub Actions repository secret `STUDIO_PREVIEW_PASSPHRASE` to the
-current administrator passcode when rotating the verifier. The preview
-workflow no longer contains a hard-coded plaintext fallback. Its existing
-live-sheet verification remains required and will fail when that secret is
-missing or stale; a source change cannot update the repository secret.
-Do not put the deployed PIN in tests, documentation, PR descriptions or logs.
+At the repository owner's request, `.github/workflows/deploy.yml` hardcodes
+`STUDIO_PREVIEW_PASSPHRASE` for the authenticated live-studio probe. No Actions
+secret is required for this value. Keep it aligned with the server verifier
+when rotating the administrator code. This intentionally makes the PIN
+visible in repository source/history and potentially workflow logs; the
+server-side hash does not conceal the workflow value. Other deployment and
+session-signing secrets remain separate and must not be committed.
+The live authentication and read-only sheet checks remain required.
 
 A four-digit PIN has only 10,000 possibilities. Hashing does not make it a
 strong credential or add rate limiting. This change keeps the existing auth

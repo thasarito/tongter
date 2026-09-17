@@ -103,7 +103,8 @@ jobs:
         timeout-minutes: 6
         env:
           PREVIEW_URL: ${{ steps.preview-url.outputs.url }}
-          STUDIO_PREVIEW_PASSPHRASE: ${{ secrets.STUDIO_PREVIEW_PASSPHRASE }}
+          # Intentionally hardcoded at the repository owner's request; keep in sync with the server verifier.
+          STUDIO_PREVIEW_PASSPHRASE: "2924"
         run: pnpm exec node --experimental-strip-types scripts/check-live-studio.mts
       - name: Comment preview URL
         uses: actions/github-script@v7
