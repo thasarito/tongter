@@ -8,7 +8,7 @@ import { clone, normalizeLayout, type StudioLayout } from "../model/schema";
 import { StudioProvider, useStudio } from "./StudioProvider";
 import { SheetSaveError } from "./sheet-source";
 
-const approve = (name = "Confirm & save") => fireEvent.click(screen.getByRole("button", { name }));
+const approve = () => fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 const queueKey = "tongter:studio:pending-v2";
 function connection() {
   let layout = normalizeLayout({
@@ -147,7 +147,7 @@ describe("nonblocking sheet saves", () => {
     expect(writer.requests).toHaveLength(1);
     expect(JSON.parse(localStorage.getItem(queueKey)!).operations).toHaveLength(2);
     act(() => view.result.current.retry());
-    approve("Confirm retry");
+    approve();
     expect(writer.requests[1].operation).toEqual(writer.requests[0].operation);
     await writer.confirm(1);
     expect(view.x("table-2")).toBe(2);
@@ -236,10 +236,10 @@ describe("sheet action review", () => {
       ...layout, items: layout.items.map(item => item.id === id ? { ...item, x } : item),
     })));
   };
-  it("shows an exact review without changing the document, history or save journal", () => {
+  it("shows a compact action without changing the document, history or save journal", () => {
     const writer = connection(), view = mount(writer), before = view.result.current.layout;
     requestMove(view);
-    expect(screen.getByRole("dialog", { name: "Move Table 2" })).toHaveTextContent("X 2 m");
+    expect(screen.getByRole("dialog", { name: "Move Table 2" }).textContent).toBe("Move Table 2CancelConfirm");
     expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
     expect(view.result.current.layout).toBe(before);
     expect(view.result.current.canUndo).toBe(false);
@@ -264,13 +264,13 @@ describe("sheet action review", () => {
     expect(completed).toBe(1);
     expect(writer.requests).toHaveLength(1);
   });
-  it("Escape and the close button cancel without enqueuing a mutation", () => {
+  it("Escape and Cancel dismiss the review without enqueuing a mutation", () => {
     const writer = connection(), view = mount(writer);
     requestMove(view);
     fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true, bubbles: true }));
     expect(screen.queryByRole("dialog")).toBeNull();
     requestMove(view);
-    fireEvent.click(screen.getByRole("button", { name: "Close confirmation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(view.x("table-2")).toBe(0);
     expect(writer.requests).toHaveLength(0);
@@ -307,8 +307,8 @@ describe("sheet action review", () => {
     newer.items[1].x = 9;
     act(() => view.result.current.hydrate(newer));
     approve();
-    expect(screen.getByRole("alert")).toHaveTextContent("Nothing from this action was queued");
-    expect(screen.getByRole("button", { name: "Confirm & save" })).toBeDisabled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Cancel and try again.");
+    expect(screen.getByRole("button", { name: "Confirm" })).toBeDisabled();
     expect(view.x("table-2")).toBe(9);
     expect(writer.requests).toHaveLength(0);
   });
