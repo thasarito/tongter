@@ -7,6 +7,7 @@ import { download } from "../model/exchange";
 import { VenueShell } from "./VenueShell";
 import { BanquetTable } from "./BanquetTable";
 import { EventZone } from "./EventZone";
+import { WeddingDecor } from "./WeddingDecor";
 import { WalkController } from "./WalkController";
 import { WalkMotion } from "./walk-motion";
 import { WalkJoystick } from "./WalkJoystick";
@@ -18,6 +19,7 @@ function SceneContents({motion}:{motion:WalkMotion}){
     <directionalLight position={[-12,24,18]} intensity={3.1} color="#fff0ce" castShadow shadow-mapSize={[2048,2048]} shadow-camera-left={-24} shadow-camera-right={24} shadow-camera-top={24} shadow-camera-bottom={-24} shadow-camera-near={.5} shadow-camera-far={80} shadow-normalBias={.035} onUpdate={light=>light.shadow.camera.updateProjectionMatrix()}/>
     <directionalLight position={[16,8,-15]} intensity={.7} color="#dfebdf"/><VenueShell options={options} inside={inside}/>
     <group ref={furniture} visible={options.furniture}>{layout.items.map(item=>item.kind==="table"?<BanquetTable key={item.id} item={item}/>:<EventZone key={item.id} item={item}/>)}</group><ScenePicker furniture={furniture}/>
+    {options.decorations&&<WeddingDecor items={layout.items} mode={options.decorationMode}/>} 
     {inside?<WalkController motion={motion}/>:<ModelControls/>}{options.guestNames&&options.furniture&&options.chairs&&<SeatLabels/>}
   </>;
 }
