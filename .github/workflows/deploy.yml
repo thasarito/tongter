@@ -18,6 +18,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -27,19 +28,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      # Browser/WebGL tests run separately in the manual browser-checks workflow.
       - run: pnpm check
       - name: Bundle private sheet writer
         run: pnpm exec wrangler deploy --config wrangler.studio-writer.jsonc --dry-run --outdir /tmp/studio-writer-build
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
-      - name: Keep synthetic studio screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: studio-browser-previews-${{ github.run_id }}
-          path: test-results/**/*.png
-          if-no-files-found: ignore
-          retention-days: 7
 
   preview:
     if: >-
@@ -47,6 +39,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     env:
       VITE_LIFF_ID: ${{ vars.VITE_LIFF_ID }}
     steps:
@@ -65,11 +58,12 @@ jobs:
           command: deploy --config wrangler.studio-writer.jsonc
       - run: pnpm build
       - name: Enable Cloudflare preview URLs
+        timeout-minutes: 1
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          curl --silent --show-error --fail-with-body \
+          curl --silent --show-error --fail-with-body --connect-timeout 5 --max-time 30 \
             --request POST \
             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             --header "Content-Type: application/json" \
@@ -92,20 +86,12 @@ jobs:
           test -n "$url"
           printf 'url=%s\n' "$url" >> "$GITHUB_OUTPUT"
       - name: Verify preview
+        timeout-minutes: 1
         env:
           PREVIEW_URL: ${{ steps.preview-url.outputs.url }}
         run: |
-          curl --silent --show-error --fail --retry 5 --retry-all-errors --retry-delay 2 "$PREVIEW_URL/" --output /dev/null
-          curl --silent --show-error --fail --retry 5 --retry-all-errors --retry-delay 2 "$PREVIEW_URL/api/health" | jq --exit-status '.ok == true'
-      - name: Install browser for live sheet verification
-        run: pnpm exec playwright install --with-deps chromium
-      - name: Verify live studio and read-only writer probe
-        timeout-minutes: 6
-        env:
-          PREVIEW_URL: ${{ steps.preview-url.outputs.url }}
-          # Intentionally hardcoded at the repository owner's request; keep in sync with the server verifier.
-          STUDIO_PREVIEW_PASSPHRASE: "2924"
-        run: pnpm exec node --experimental-strip-types scripts/check-live-studio.mts
+          curl --silent --show-error --fail --connect-timeout 5 --max-time 10 --retry 2 --retry-all-errors --retry-delay 2 --retry-max-time 20 "$PREVIEW_URL/" --output /dev/null
+          curl --silent --show-error --fail --connect-timeout 5 --max-time 10 --retry 2 --retry-all-errors --retry-delay 2 --retry-max-time 20 "$PREVIEW_URL/api/health" | jq --exit-status '.ok == true'
       - name: Comment preview URL
         uses: actions/github-script@v7
         env:
@@ -113,7 +99,7 @@ jobs:
         with:
           script: |
             const marker = '<!-- cloudflare-preview -->';
-            const body = `${marker}\nCloudflare preview: ${process.env.PREVIEW_URL}\n\nDesktop/mobile live-sheet readback and the read-only writer probe passed. No live guest placements were changed by verification.`;
+            const body = `${marker}\nCloudflare preview: ${process.env.PREVIEW_URL}\n\nApplication and API health checks passed. Browser and live-sheet checks are manual-only.`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
@@ -122,9 +108,10 @@ jobs:
             else await github.rest.issues.createComment({ owner, repo, issue_number, body });
 
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       VITE_LIFF_ID: ${{ vars.VITE_LIFF_ID }}
