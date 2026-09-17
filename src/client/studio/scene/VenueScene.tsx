@@ -19,7 +19,7 @@ function SceneContents({motion}:{motion:WalkMotion}){
     <directionalLight position={[-12,24,18]} intensity={3.1} color="#fff0ce" castShadow shadow-mapSize={[2048,2048]} shadow-camera-left={-24} shadow-camera-right={24} shadow-camera-top={24} shadow-camera-bottom={-24} shadow-camera-near={.5} shadow-camera-far={80} shadow-normalBias={.035} onUpdate={light=>light.shadow.camera.updateProjectionMatrix()}/>
     <directionalLight position={[16,8,-15]} intensity={.7} color="#dfebdf"/><VenueShell options={options} inside={inside}/>
     <group ref={furniture} visible={options.furniture}>{layout.items.map(item=>item.kind==="table"?<BanquetTable key={item.id} item={item}/>:<EventZone key={item.id} item={item}/>)}</group><ScenePicker furniture={furniture}/>
-    {options.decorations&&<WeddingDecor items={layout.items} mode={options.decorationMode}/>} 
+    {options.decorations&&<WeddingDecor items={layout.items} mode={options.decorationMode} furniture={options.furniture} garden={options.garden}/>}
     {inside?<WalkController motion={motion}/>:<ModelControls/>}{options.guestNames&&options.furniture&&options.chairs&&<SeatLabels/>}
   </>;
 }

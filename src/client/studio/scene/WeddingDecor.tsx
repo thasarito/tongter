@@ -1,72 +1,59 @@
-import { DoubleSide, Shape } from "three";
-import type { StudioItem } from "../model/schema";
+import { Suspense } from "react";
+import type { DecorationMode, StudioItem } from "../model/schema";
+import { Fabric } from "./decor/Fabric";
+import { Flowers } from "./decor/Flowers";
+import { Candle, DecorBox, DrapedTable, StageDecor, WeddingWordmark } from "./decor/StageDecor";
+import { noDecorRaycast, type FlowerClump } from "./decor/geometry";
+export type { DecorationMode } from "../model/schema";
 
-export type DecorationMode = "stage" | "head-table" | "cake-table";
-
-function FlowerCluster({position,scale=1}:{position:[number,number,number];scale?:number}){
-  const flowers:[number,number,number,string,number][]=[
-    [0,0,0,"#f7f3e8",.23],[.24,.1,.02,"#ead7d5",.2],[-.2,.16,-.02,"#f2e7df",.19],[.08,.31,.03,"#cfd8bf",.18],[-.13,.34,.01,"#f4eee8",.16],[.33,.28,-.02,"#d9c2c6",.15],
-  ];
-  return <group position={position} scale={scale}>
-    {flowers.map(([x,y,z,color,r],i)=><mesh key={i} position={[x,y,z]} castShadow><sphereGeometry args={[r,10,8]}/><meshStandardMaterial color={color} roughness={.95}/></mesh>)}
-    <mesh position={[.02,.12,-.08]} rotation={[0,0,.35]}><boxGeometry args={[.08,.9,.05]}/><meshStandardMaterial color="#6f7c5d" roughness={1}/></mesh>
-    <mesh position={[-.18,.18,-.06]} rotation={[0,0,-.45]}><boxGeometry args={[.07,.72,.04]}/><meshStandardMaterial color="#748368" roughness={1}/></mesh>
-  </group>;
-}
-function Candle({position,height=.38}:{position:[number,number,number];height?:number}){
-  return <group position={position}><mesh position={[0,height/2,0]} castShadow><cylinderGeometry args={[.025,.028,height,10]}/><meshStandardMaterial color="#f4ead6" roughness={.8}/></mesh><mesh position={[0,height+.035,0]}><sphereGeometry args={[.035,8,6]}/><meshStandardMaterial color="#ffd79d" emissive="#ffb557" emissiveIntensity={1.4}/></mesh></group>;
-}
-function DrapedBackdrop({centerZ,width=6.6}:{centerZ:number;width?:number}){
-  const shape=new Shape();shape.moveTo(-.48,0);shape.bezierCurveTo(-.35,.9,-.12,1.55,0,2.25);shape.bezierCurveTo(.12,1.55,.35,.9,.48,0);shape.lineTo(-.48,0);
-  return <group position={[10.8,0,centerZ]} rotation={[0,Math.PI/2,0]}>
-    {[-width*.38,-width*.12,width*.12,width*.38].map((x,i)=><mesh key={i} position={[x,1.4,0]} scale={[1.15,1.2,1]} castShadow><shapeGeometry args={[shape]}/><meshStandardMaterial color="#f4f1e8" side={DoubleSide} transparent opacity={.78} roughness={1}/></mesh>)}
-    <mesh position={[0,2.2,-.08]}><boxGeometry args={[width,.08,.08]}/><meshStandardMaterial color="#ded9ce" roughness={1}/></mesh>
-  </group>;
-}
-function StageFlowers({z}:{z:number}){
-  return <><FlowerCluster position={[9.65,.1,z-2.15]} scale={1.55}/><FlowerCluster position={[9.55,.08,z+2.1]} scale={1.35}/><FlowerCluster position={[10.15,3.95,z-.2]} scale={1.15}/><FlowerCluster position={[10.0,4.25,z+.72]} scale={.9}/></>;
-}
-function HeadTable({stage}:{stage:StudioItem}){
-  const z=stage.z;
-  return <group>
-    <mesh position={[stage.x-1.4,.76,z]} castShadow><boxGeometry args={[2.8,.09,.78]}/><meshStandardMaterial color="#f4eee8" roughness={1}/></mesh>
-    <mesh position={[stage.x-1.4,.39,z]} castShadow><boxGeometry args={[2.86,.72,.82]}/><meshStandardMaterial color="#eee5de" roughness={1}/></mesh>
-    <FlowerCluster position={[stage.x-2.6,.82,z-.23]} scale={.72}/><FlowerCluster position={[stage.x-.42,.82,z+.22]} scale={.62}/>
-    {[-2.1,-1.72,-1.1,-.72].map((x,i)=><Candle key={i} position={[stage.x+x,.82,z+(i%2?.28:-.26)]} height={i%2?.5:.36}/>) }
-  </group>;
-}
-function CakeTable({stage}:{stage:StudioItem}){
-  return <group position={[stage.x-1.4,0,stage.z]}>
-    <mesh position={[0,.43,0]} castShadow><cylinderGeometry args={[.63,.72,.84,36]}/><meshStandardMaterial color="#eee7df" roughness={1}/></mesh>
-    <mesh position={[0,.88,0]} castShadow><cylinderGeometry args={[.42,.44,.12,36]}/><meshStandardMaterial color="#f7f3ed" roughness={.95}/></mesh>
-    <mesh position={[0,1.02,0]} castShadow><cylinderGeometry args={[.3,.33,.16,30]}/><meshStandardMaterial color="#e5ddd4" roughness={.9}/></mesh>
-    <FlowerCluster position={[.56,.08,.36]} scale={.55}/><Candle position={[-.62,.04,.18]} height={.34}/><Candle position={[.65,.04,-.26]} height={.28}/>
-  </group>;
-}
+const entryFlowers:FlowerClump[]=[
+  {center:[.5,.25,.18],radius:[.32,.23,.21],count:100,seed:310,tone:"blush"},
+  {center:[2.83,.84,.16],radius:[.24,.16,.22],count:85,seed:320,tone:"blush"},
+];
+const gardenFlowers:FlowerClump[]=[
+  {center:[.6,.24,.25],radius:[.66,.23,.31],count:240,seed:410},
+  {center:[.75,.86,.05],radius:[.24,.65,.19],count:240,seed:420,tone:"lime"},
+  {center:[.80,1.58,.03],radius:[.13,.30,.15],count:120,seed:430,tone:"blush"},
+];
+const tableFlowers:FlowerClump[]=[{center:[0,.19,0],radius:[.13,.12,.11],count:35,seed:510,tone:"blush"}];
 function EntranceDecor(){
-  return <group position={[-11.15,0,-4.15]} rotation={[0,.15,0]}>
-    <mesh position={[0,1.08,0]} castShadow><boxGeometry args={[1.45,2.15,.09]}/><meshStandardMaterial color="#d8d6d0" metalness={.08} roughness={.35}/></mesh>
-    <mesh position={[0,1.08,-.055]}><boxGeometry args={[1.28,1.98,.025]}/><meshStandardMaterial color="#f3f1ed" metalness={.65} roughness={.12}/></mesh>
-    <FlowerCluster position={[.52,.05,.22]} scale={.72}/>{[-.63,-.42,-.2].map((x,i)=><Candle key={i} position={[x,.01,.25]} height={.2+i*.08}/>)}
-    <mesh position={[2.0,.4,.1]} castShadow><boxGeometry args={[2.35,.78,.72]}/><meshStandardMaterial color="#eee5dc" roughness={1}/></mesh>
-    <FlowerCluster position={[2.82,.78,.12]} scale={.52}/>
-    <mesh position={[3.65,1.12,.12]} castShadow><boxGeometry args={[.95,2.25,.08]}/><meshStandardMaterial color="#f4f0e7" roughness={1}/></mesh>
+  return <group name="decor-entrance" position={[-11.15,0,-4.15]} rotation={[0,.15,0]}>
+    <DecorBox position={[0,1.08,0]} size={[1.02,2.16,.06]} color="#c4bcad"/>
+    <mesh position={[0,1.08,.04]} raycast={noDecorRaycast}><planeGeometry args={[.92,2.07]}/><meshStandardMaterial color="#d0d3d1" metalness={.82} roughness={.18}/></mesh>
+    <Fabric position={[-.50,0,.065]} width={.30} height={2.20} lean={-.10} pool={.26}/>
+    <Fabric position={[.50,0,.065]} width={.30} height={2.20} lean={.13} pool={.24}/>
+    <Fabric kind="swag" position={[0,0,.08]} width={1.06} height={2.21} sag={.10} band={.16}/>
+    <Suspense fallback={null}><WeddingWordmark position={[0,.95,.08]} width={.62}/></Suspense>
+    {[-.54,-.34,-.17].map((x,i)=><Candle key={x} position={[x,.02,.26]} height={.16+i*.085}/>)}
+    <group position={[2.0,0,.1]}><DrapedTable width={2.35}/><DecorBox position={[-.64,.98,0]} size={[.30,.38,.28]}/><DecorBox position={[-.16,.9,.08]} size={[.26,.23,.03]} color="#cfc6b6"/></group>
+    <DecorBox position={[3.65,1.10,.12]} size={[.95,2.2,.06]}/>
+    {/* Abstract seating-chart lines only; never publish real names or invitations. */}
+    {Array.from({length:18},(_,i)=><DecorBox key={i} position={[3.65,1.84-i*.076,.156]} size={[i%6===0?.5:.32,.005,.005]} color="#a8a093"/>)}
+    <Flowers clumps={entryFlowers}/>
   </group>;
 }
 function GardenBackdrop(){
-  return <group position={[-7.2,0,7.65]} rotation={[0,-.3,0]}>
-    <mesh position={[-.9,1.75,0]}><boxGeometry args={[.08,3.5,.08]}/><meshStandardMaterial color="#d7d2c8"/></mesh><mesh position={[1.05,1.5,0]}><boxGeometry args={[.08,3,.08]}/><meshStandardMaterial color="#d7d2c8"/></mesh>
-    <mesh position={[.08,2.25,0]} rotation={[0,0,-.3]}><boxGeometry args={[2.5,.035,.04]}/><meshStandardMaterial color="#eee9e0" transparent opacity={.76}/></mesh>
-    <mesh position={[.08,1.6,.01]} rotation={[0,0,.25]}><boxGeometry args={[2.8,.035,.04]}/><meshStandardMaterial color="#f4f1ea" transparent opacity={.72}/></mesh>
-    <FlowerCluster position={[.55,.05,.08]} scale={1.05}/>
+  return <group name="decor-garden" position={[-7.2,0,7.65]} rotation={[0,-.3,0]}>
+    <DecorBox position={[-1.02,1.7,-.10]} size={[.028,3.4,.028]} color="#cbc3b4"/>
+    <DecorBox position={[1.04,1.35,-.10]} size={[.028,2.7,.028]} color="#cbc3b4"/>
+    <Fabric position={[-1.02,0,0]} width={.70} height={3.45} lean={.20} pool={.48}/>
+    <Fabric position={[1.04,0,0]} width={.54} height={2.72} lean={-.24} pool={.35}/>
+    {[0,.35,.65].map((drop,i)=><Fabric key={i} kind="swag" position={[0,0,.03+i*.04]} width={2.06} height={3.1-drop} sag={.84} band={.28} tilt={-.73} opacity={.76}/>)}
+    <Flowers clumps={gardenFlowers}/>
   </group>;
 }
-export function WeddingDecor({items,mode}:{items:StudioItem[];mode:DecorationMode}){
+function TableFlowers({table}:{table:StudioItem}){
+  const scale=Math.min(.9,table.w/1.5,table.d/.9);
+  return <group name="decor-table-centerpiece" position={[table.x,table.h+.02,table.z]} rotation={[0,-table.rotation*Math.PI/180,0]} scale={scale}>
+    <mesh position={[0,.06,0]} raycast={noDecorRaycast}><cylinderGeometry args={[.045,.06,.12,12]}/><meshStandardMaterial color="#d4cbb4" metalness={.3} roughness={.5}/></mesh>
+    <Flowers clumps={tableFlowers}/><Candle position={[-.24,0,0]} height={.16}/><Candle position={[.22,0,.04]} height={.23}/>
+  </group>;
+}
+/** View-only meshes. No layout state, collision/picking targets, or Sheets writes. */
+export function WeddingDecor({items,mode,furniture=true,garden=true}:{items:StudioItem[];mode:DecorationMode;furniture?:boolean;garden?:boolean}){
   const stage=items.find(item=>item.kind==="stage");
-  if(!stage)return null;
-  return <group name="wedding-decor" raycast={()=>null}>
-    <DrapedBackdrop centerZ={stage.z}/><StageFlowers z={stage.z}/>
-    {mode==="head-table"&&<HeadTable stage={stage}/>} {mode==="cake-table"&&<CakeTable stage={stage}/>} 
-    <EntranceDecor/><GardenBackdrop/>
+  return <group name="wedding-decor">
+    {furniture&&<>{stage&&<StageDecor stage={stage} mode={mode}/>}<EntranceDecor/>{items.filter(item=>item.kind==="table").map(table=><TableFlowers key={table.id} table={table}/>)}</>}
+    {garden&&<GardenBackdrop/>}
   </group>;
 }
