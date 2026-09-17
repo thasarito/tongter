@@ -43,11 +43,13 @@ export interface StudioLayout {
 }
 export interface SeatTarget { tableId: string; seatNumber?: number | null }
 export type ViewMode = "plan" | "model" | "inside";
+export type DecorationMode = "stage" | "head-table" | "cake-table";
 export interface ViewOptions {
   roof: "cut" | "frame" | "full"; walls: "low" | "full"; chairs: boolean;
   furniture: boolean; guestNames: boolean; tableLabels: boolean; grid: boolean; snap: boolean; garden: boolean;
+  decorations: boolean; decorationMode: DecorationMode;
 }
-export const defaultOptions: ViewOptions = { roof: "cut", walls: "low", chairs: true, furniture: true, guestNames: true, tableLabels: true, grid: false, snap: true, garden: true };
+export const defaultOptions: ViewOptions = { roof: "cut", walls: "low", chairs: true, furniture: true, guestNames: true, tableLabels: true, grid: false, snap: true, garden: true, decorations: true, decorationMode: "stage" };
 export const clone = <T,>(value: T): T => structuredClone(value);
 export const makeId = (prefix = "guest") => `${prefix}-${crypto.randomUUID()}`;
 export const tableGuests = (s: StudioLayout, tableId: string) => s.guestList.filter(g => g.tableId === tableId).sort((a, b) => (a.seatNumber ?? 0) - (b.seatNumber ?? 0));
