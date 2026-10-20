@@ -2,9 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { applyMutation, inverseMutation, mutationBetween, mutationSchema, same, StudioConflict, type StudioMutation } from "@/shared/studio-mutations";
 import type { StudioSheetSnapshot } from "@/shared/studio-sheet";
 import { defaultLayout } from "../model/defaults";
-import { normalizeLayout, defaultOptions, clone, type StudioLayout, type SeatTarget, type ViewMode, type ViewOptions } from "../model/schema";
+import { normalizeLayout, defaultOptions, clone, guestSchema, type StudioGuest, type StudioLayout, type SeatTarget, type ViewMode, type ViewOptions } from "../model/schema";
 import type { GuestImport } from "../model/exchange";
 import { SheetSaveError } from "./sheet-source";
+import { clearRsvpNoteDraft, storeRsvpNoteDraft } from "./rsvp-note-draft";
 import { summarizeSheetMutation, summarizeSheetRetry, type SheetActionSummary } from "../model/sheet-action-summary";
 import { SheetConfirmationGate, type SheetConfirmation } from "./sheet-confirmation";
 import { SheetActionDialog } from "../components/SheetActionDialog";
@@ -21,7 +22,7 @@ export function historyReducer(h:Timeline,a:HistoryAction):Timeline {
     return {past:[...h.past,operation].slice(-60),present,future:[],message:a.label,revision:h.revision+1};
   }catch(cause){return {...h,message:cause instanceof Error?cause.message:"Unable to apply change."};}
 }
-export type StudioModal={type:"seat";target:SeatTarget}|{type:"guest";id?:string;target?:SeatTarget}|{type:"import";data:GuestImport}|null;
+export type StudioModal={type:"seat";target:SeatTarget}|{type:"guest";id?:string;target?:SeatTarget}|{type:"rsvp";id:string;target?:SeatTarget}|{type:"import";data:GuestImport}|null;
 type Saver=(operation:StudioMutation)=>Promise<StudioSheetSnapshot>;
 const PENDING_KEY="tongter:studio:pending-v2";
 const LEGACY_PENDING_KEY="tongter:studio:pending-v1";
@@ -39,6 +40,7 @@ interface StudioContextValue {
   view:ViewMode;setView:(v:ViewMode)=>void;options:ViewOptions;setOptions:(v:ViewOptions|((v:ViewOptions)=>ViewOptions))=>void;
   modal:StudioModal;setModal:(v:StudioModal)=>void;picked:string[];setPicked:(v:string[]|((v:string[])=>string[]))=>void;
   commit:(label:string,update:(s:StudioLayout)=>StudioLayout,onConfirmed?:(layout:StudioLayout)=>void)=>void;undo:()=>void;redo:()=>void;canUndo:boolean;canRedo:boolean;notify:(message:string)=>void;
+  saveGuestRsvp:(id:string,patch:Partial<Pick<StudioGuest,"rsvp"|"notes">>)=>void;
   reviewing:boolean;isReviewing:()=>boolean;reviewSheetAction:(summary:SheetActionSummary,execute:()=>void)=>void;
   hydrate:(layout:StudioLayout)=>void;connect:(save:Saver)=>void;retry:()=>void;busy:boolean;pending:boolean;pendingCount:number;editable:boolean;syncError:string;
 }
@@ -66,6 +68,7 @@ export function StudioProvider({children}:{children:ReactNode}){
   },[notify]);
   const reconcile=useCallback((snapshot:StudioSheetSnapshot,rejection?:string)=>{
     let present=normalizeLayout(snapshot.layout);
+    const head=queue.current[0];
     const remaining:StudioMutation[]=[],conflicts:string[]=rejection?[rejection]:[];
     // The head is confirmed (or definitively rejected). Read the CURRENT tail, not
     // a pre-request snapshot: further edits can arrive while the save is awaiting Sheets.
@@ -84,6 +87,11 @@ export function StudioProvider({children}:{children:ReactNode}){
       message:warning||(remaining.length?"Changes queued · you can keep editing.":"Saved to Google Sheets.")});
     if(warning)setSyncError(warning);
     persistQueue();
+    // A rejected operation leaves its note recoverable even after the editor
+    // closes. Status-only acknowledgements must not clear unrelated drafts.
+    if(rejection===undefined)for(const change of head?.changes??[]){
+      if(change.entity==="guest"&&change.after&&change.before?.notes!==change.after.notes)clearRsvpNoteDraft(change.id,change.after.notes);
+    }
   },[publish,persistQueue]);
   const run=useCallback(async()=>{
     const write=saver.current;if(!queue.current.length||!write||inflight.current||paused.current||!mounted.current)return;
@@ -145,6 +153,23 @@ export function StudioProvider({children}:{children:ReactNode}){
     }catch(cause){notify(cause instanceof Error?cause.message:"Unable to prepare the save.");}
   },[approval,reviewSheetAction,notify,publish,persistQueue,run]);
   const commit=useCallback((label:string,update:(s:StudioLayout)=>StudioLayout,onConfirmed?:(layout:StudioLayout)=>void)=>perform({type:"commit",label,update},onConfirmed),[perform]);
+  const saveGuestRsvp=useCallback((id:string,patch:Partial<Pick<StudioGuest,"rsvp"|"notes">>)=>{
+    if(!saver.current||!mounted.current||restoringRef.current)throw Error(restoringRef.current?"Confirming the previous session's pending edits before resuming.":"Wait for the sheet connection before editing.");
+    if(approval.current)throw Error("Finish reviewing the current action first.");
+    // Only the two explicitly autosaved fields may bypass action review. Reject
+    // undefined as well: schema defaults must never reset an omitted status/note.
+    if(!patch||typeof patch!=="object"||Array.isArray(patch)||Reflect.ownKeys(patch).some(key=>(key!=="rsvp"&&key!=="notes")||typeof Reflect.get(patch,key)!=="string"))throw Error("Only RSVP status and notes can be saved automatically.");
+    const before=latest.current,guest=before.present.guestList.find(value=>value.id===id);
+    if(!guest)throw Error("That guest no longer exists.");
+    const updated=guestSchema.parse({...guest,...patch});
+    const present=normalizeLayout({...before.present,guestList:before.present.guestList.map(value=>value.id===id?updated:value)});
+    const operation=mutationBetween(before.present,present);
+    if(!operation.changes.length)return;
+    if(patch.notes!==undefined&&updated.notes!==guest.notes)storeRsvpNoteDraft(id,patch.notes);
+    queue.current.push(operation);
+    publish({...before,past:[...before.past,operation].slice(-60),present,future:[],revision:before.revision+1,message:"RSVP details updated"});
+    persistQueue();void run();
+  },[approval,publish,persistQueue,run]);
   const undo=useCallback(()=>perform({type:"undo"}),[perform]),redo=useCallback(()=>perform({type:"redo"}),[perform]);
   const resume=useCallback(()=>{paused.current=false;void run();},[run]);
   const retry=useCallback(()=>{
@@ -164,7 +189,7 @@ export function StudioProvider({children}:{children:ReactNode}){
   },[undo,redo,resume]);
   const pending=pendingCount>0,reviewing=!!review,editable=connected&&!restoring&&!reviewing;
   const saved=restoring?"Confirming recovered edits…":pending?(busy?`Saving to Google Sheets · ${pendingCount} pending · keep editing`: `${pendingCount} changes pending · retry available · keep editing`):connected?"Google Sheets · automatic saving":"Connecting to Google Sheets…";
-  const value=useMemo(()=>({layout:history.present,notice:history.message,revision:history.revision,saved,selected,setSelected,view,setView,options,setOptions,modal,setModal,picked,setPicked,commit,undo,redo,canUndo:editable&&!!history.past.length,canRedo:editable&&!!history.future.length,notify,hydrate,connect,retry,busy,pending,pendingCount,editable,syncError,reviewing,isReviewing,reviewSheetAction}),[history,saved,selected,view,options,modal,picked,commit,undo,redo,notify,hydrate,connect,retry,busy,pending,pendingCount,editable,syncError,reviewing,isReviewing,reviewSheetAction]);
+  const value=useMemo(()=>({layout:history.present,notice:history.message,revision:history.revision,saved,selected,setSelected,view,setView,options,setOptions,modal,setModal,picked,setPicked,commit,saveGuestRsvp,undo,redo,canUndo:editable&&!!history.past.length,canRedo:editable&&!!history.future.length,notify,hydrate,connect,retry,busy,pending,pendingCount,editable,syncError,reviewing,isReviewing,reviewSheetAction}),[history,saved,selected,view,options,modal,picked,commit,saveGuestRsvp,undo,redo,notify,hydrate,connect,retry,busy,pending,pendingCount,editable,syncError,reviewing,isReviewing,reviewSheetAction]);
   return <StudioContext.Provider value={value}>{children}{review&&<SheetActionDialog key={review.id} review={review} onConfirm={id=>approval.confirm(id)} onCancel={id=>approval.cancel(id)}/>}</StudioContext.Provider>;
 }
 export function useStudio(){const value=useContext(StudioContext);if(!value)throw Error("StudioProvider is required.");return value;}

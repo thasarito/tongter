@@ -1,6 +1,7 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { localPolygon, seats } from "../model/geometry";
-import { occupant, tableGuests, type StudioItem, type StudioLayout } from "../model/schema";
+import { occupant, type StudioItem, type StudioLayout } from "../model/schema";
+import { confirmedAtTable } from "../model/rsvp";
 import { useStudio } from "../state/StudioProvider";
 import { useDropTarget } from "../interaction/GuestDragProvider";
 const colors:Record<StudioItem["kind"],string>={table:"#fffdf5",stage:"#738c7c",aisle:"#ded0af",runner:"#ded0af",band:"#dce5d0",bar:"#95aa87",buffet:"#c3b58f",dance:"#d5bd92"};
@@ -18,6 +19,6 @@ export function PlanFurniture({item,layout,onMove}:{item:StudioItem;layout:Studi
   return <g transform={`translate(${item.x} ${item.z}) rotate(${item.rotation})`} className={`studio-plan-item ${selected===item.id?"selected":""}`}>
     {item.kind==="table"&&options.chairs&&seats(item).map(s=><PlanSeat key={s.number} table={item} number={s.number} layout={layout}/>)}
     <polygon points={localPolygon(item).map(p=>p.join(",")).join(" ")} fill={colors[item.kind]} stroke={selected===item.id?"#a47b37":"#a6b496"} strokeWidth={selected===item.id ? .07 : .025} {...(item.kind==="table"?drop:{})} data-furniture={item.id} onPointerDown={e=>onMove(e,item)} onClick={()=>setSelected(item.id)} tabIndex={0} role="button" aria-label={`Select ${item.kind} ${item.label}`} onKeyDown={e=>{if(e.key==="Enter")setSelected(item.id);}}/>
-    {options.tableLabels&&<g transform={`rotate(${-item.rotation})`} pointerEvents="none"><text textAnchor="middle" y={.04} fontSize={item.kind==="table" ? .34 : .27} fill={item.kind==="stage"?"white":"#536f4d"}>{item.label}</text>{item.kind==="table"&&<text textAnchor="middle" y={.31} fontSize={.1} fill="#8c967d">{tableGuests(layout,item.id).length} / {item.seats} SEATED</text>}</g>}
+    {options.tableLabels&&<g transform={`rotate(${-item.rotation})`} pointerEvents="none"><text textAnchor="middle" y={.04} fontSize={item.kind==="table" ? .34 : .27} fill={item.kind==="stage"?"white":"#536f4d"}>{item.label}</text>{item.kind==="table"&&<text className="studio-plan-confirmation" data-table-confirmation={item.id} textAnchor="middle" y={.31} fontSize={.115} fill="#657b59">Confirmed {confirmedAtTable(layout,item.id)}/{item.seats}</text>}</g>}
   </g>;
 }

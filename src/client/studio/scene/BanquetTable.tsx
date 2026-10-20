@@ -5,6 +5,7 @@ import { Matrix4 } from "three";
 import { radians, seats } from "../model/geometry";
 import { occupant, type StudioItem } from "../model/schema";
 import { useStudio } from "../state/StudioProvider";
+import { TableConfirmation } from "../components/TableConfirmation";
 import { InstancedBoxes, boxMatrix } from "./InstancedBoxes";
 export function BanquetTable({item}:{item:StudioItem}){
   const {layout,options,selected,setSelected,setModal,view}=useStudio();
@@ -35,6 +36,6 @@ export function BanquetTable({item}:{item:StudioItem}){
       <InstancedBoxes matrices={chairData.frames} color="#b7bba7" metalness={.65} userData={{tableId:item.id,seatNumbers:chairData.numbers}} onClick={clickSeat(chairData.numbers)}/>
       <InstancedBoxes matrices={chairData.cushions} colors={colors} metalness={0} userData={{tableId:item.id,seatNumbers:colors.map((_,i)=>i+1)}} onClick={clickSeat(colors.map((_,i)=>i+1))}/>
     </group>
-    {options.tableLabels&&<Html center position={[0,item.h+.08,0]} style={{pointerEvents:"none"}} zIndexRange={[8,0]}><span className="studio-table-number">{item.label}</span></Html>}
+    {options.tableLabels&&<Html center position={[0,item.h+.08,0]} style={{pointerEvents:"none"}} zIndexRange={[8,0]}><span className="studio-table-number">{item.label}<TableConfirmation tableId={item.id}/></span></Html>}
   </group>;
 }
