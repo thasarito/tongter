@@ -9,6 +9,7 @@ import { StudioSidebar } from "./components/StudioSidebar";
 import { StudioDock } from "./components/StudioDock";
 import { SeatEditor } from "./components/SeatEditor";
 import { GuestForm } from "./components/GuestForm";
+import { GuestRsvpDialog } from "./components/GuestRsvpDialog";
 import { ImportDialog } from "./components/ImportDialog";
 import { SceneErrorBoundary } from "./scene/SceneErrorBoundary";
 import "./studio.css";
@@ -16,9 +17,10 @@ import "./styles/drag-feedback.css";
 import "./styles/immersive.css";
 import "./styles/touch.css";
 import "./styles/bottom-dock.css";
+import "./styles/rsvp.css";
 const VenueScene=lazy(()=>import("./scene/VenueScene"));
 interface Props {onUnauthorized:()=>void;loadSiteGuests?:()=>Promise<StudioGuestImport>}
-function DialogHost(){const {modal}=useStudio();if(!modal)return null;if(modal.type==="seat")return <SeatEditor key={modal.target.tableId} target={modal.target}/>;if(modal.type==="guest")return <GuestForm key={modal.id??`new:${modal.target?.tableId}:${modal.target?.seatNumber}`} id={modal.id} target={modal.target}/>;return <ImportDialog data={modal.data}/>;}
+function DialogHost(){const {modal}=useStudio();if(!modal)return null;if(modal.type==="seat")return <SeatEditor key={modal.target.tableId} target={modal.target}/>;if(modal.type==="rsvp")return <GuestRsvpDialog key={modal.id} id={modal.id} target={modal.target}/>;if(modal.type==="guest")return <GuestForm key={modal.id??`new:${modal.target?.tableId}:${modal.target?.seatNumber}`} id={modal.id} target={modal.target}/>;return <ImportDialog data={modal.data}/>;}
 function Workspace(){
   const {view,setView,notice,saved,pending}=useStudio(),{open,closePanel}=useStudioChrome();
   useStudioScrollLock();useEffect(()=>closePanel(),[view,closePanel]);

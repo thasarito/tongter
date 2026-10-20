@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, renderHook, screen } from "@testing-library/react";
 import { applyMutation, type StudioMutation } from "@/shared/studio-mutations";
 import type { StudioSheetSnapshot } from "@/shared/studio-sheet";
@@ -7,9 +7,11 @@ import { defaultLayout } from "../model/defaults";
 import { clone, normalizeLayout, type StudioLayout } from "../model/schema";
 import { StudioProvider, useStudio } from "./StudioProvider";
 import { SheetSaveError } from "./sheet-source";
+import { clearRsvpNoteDraft, readRsvpNoteDraft, storeRsvpNoteDraft } from "./rsvp-note-draft";
 
 const approve = () => fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 const queueKey = "tongter:studio:pending-v2";
+const noteDraftKey = (id: string) => `tongter:studio:rsvp-note-v1:${id}`;
 function connection() {
   let layout = normalizeLayout({
     ...defaultLayout(),
@@ -66,6 +68,46 @@ function mount(writer: ReturnType<typeof connection>) {
 }
 beforeEach(() => localStorage.clear());
 afterEach(cleanup);
+
+describe("recoverable RSVP note drafts", () => {
+  it("keeps raw text per guest and rejects oversized stored drafts", () => {
+    expect(readRsvpNoteDraft("synthetic-1")).toBeNull();
+    expect(storeRsvpNoteDraft("synthetic-1", "  Draft with spaces  ")).toBe(true);
+    expect(storeRsvpNoteDraft("synthetic-2", "")).toBe(true);
+    expect(readRsvpNoteDraft("synthetic-1")).toBe("  Draft with spaces  ");
+    expect(readRsvpNoteDraft("synthetic-2")).toBe("");
+    localStorage.setItem(noteDraftKey("synthetic-1"), "x".repeat(4001));
+    expect(readRsvpNoteDraft("synthetic-1")).toBeNull();
+    expect(storeRsvpNoteDraft("synthetic-1", "x".repeat(4000))).toBe(true);
+    expect(readRsvpNoteDraft("synthetic-1")).toHaveLength(4000);
+  });
+
+  it("clears matching normalized text while retaining newer drafts", () => {
+    storeRsvpNoteDraft("synthetic-1", "  New note  ");
+    clearRsvpNoteDraft("synthetic-1", "Old note");
+    expect(readRsvpNoteDraft("synthetic-1")).toBe("  New note  ");
+    clearRsvpNoteDraft("synthetic-1", "New note");
+    expect(readRsvpNoteDraft("synthetic-1")).toBeNull();
+    storeRsvpNoteDraft("synthetic-1", "Discard explicitly");
+    clearRsvpNoteDraft("synthetic-1");
+    expect(readRsvpNoteDraft("synthetic-1")).toBeNull();
+  });
+
+  it("handles unavailable draft storage without interrupting the editor", () => {
+    const unavailable = () => { throw Error("Storage unavailable"); };
+    const read = vi.spyOn(Storage.prototype, "getItem").mockImplementation(unavailable);
+    try {
+      expect(readRsvpNoteDraft("synthetic-1")).toBeNull();
+      expect(() => clearRsvpNoteDraft("synthetic-1", "Expected note")).not.toThrow();
+    } finally { read.mockRestore(); }
+    const write = vi.spyOn(Storage.prototype, "setItem").mockImplementation(unavailable);
+    try { expect(storeRsvpNoteDraft("synthetic-1", "Keep typing")).toBe(false); }
+    finally { write.mockRestore(); }
+    const remove = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(unavailable);
+    try { expect(() => clearRsvpNoteDraft("synthetic-1")).not.toThrow(); }
+    finally { remove.mockRestore(); }
+  });
+});
 
 describe("nonblocking sheet saves", () => {
   it("keeps the second table move visible before and after the first save response", async () => {
@@ -227,6 +269,212 @@ describe("nonblocking sheet saves", () => {
     act(() => view.result.current.hydrate(stale.layout));
     expect(view.x("table-2")).toBe(2);
     await writer.confirm(1);
+  });
+});
+
+describe("RSVP detail autosave", () => {
+  it("queues status and notes immediately while preserving a declined guest's exact seat", async () => {
+    const writer = connection(), view = mount(writer);
+    act(() => view.result.current.saveGuestRsvp("synthetic-1", { rsvp: "Declined", notes: "Called today" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(view.result.current.layout.guestList[0]).toMatchObject({
+      rsvp: "Declined", notes: "Called today", tableId: "table-1", seatNumber: 1,
+    });
+    expect(writer.requests).toHaveLength(1);
+    expect(writer.requests[0].operation.changes).toHaveLength(1);
+    expect(JSON.parse(localStorage.getItem(queueKey)!).operations[0]).toEqual(writer.requests[0].operation);
+    expect(view.result.current.canUndo).toBe(true);
+    await writer.confirm(0);
+    expect(writer.snapshot().layout.guestList[0]).toMatchObject({
+      rsvp: "Declined", notes: "Called today", tableId: "table-1", seatNumber: 1,
+    });
+    expect(view.result.current.pending).toBe(false);
+    expect(localStorage.getItem(queueKey)).toBeNull();
+    act(() => view.result.current.undo());
+    expect(screen.getByRole("dialog")).toHaveTextContent("Undo:");
+    expect(writer.requests).toHaveLength(1);
+    approve();
+    await writer.confirm(1);
+    expect(writer.snapshot().layout.guestList[0]).toMatchObject({ rsvp: "Pending", notes: "", seatNumber: 1 });
+  });
+
+  it("does not enqueue unchanged or empty patches", () => {
+    const writer = connection(), view = mount(writer), before = view.result.current.layout;
+    act(() => {
+      view.result.current.saveGuestRsvp("synthetic-1", {});
+      view.result.current.saveGuestRsvp("synthetic-1", { rsvp: "Pending", notes: "   " });
+    });
+    expect(view.result.current.layout).toBe(before);
+    expect(writer.requests).toHaveLength(0);
+    expect(view.result.current.canUndo).toBe(false);
+    expect(localStorage.getItem(queueKey)).toBeNull();
+  });
+
+  it("patches the latest guest without reverting newer name, dietary or seat edits", async () => {
+    const writer = connection(), view = mount(writer), save = view.result.current.saveGuestRsvp;
+    act(() => {
+      view.result.current.commit("Guest updated", layout => ({
+        ...layout, guestList: layout.guestList.map(guest => guest.id === "synthetic-1"
+          ? { ...guest, name: "Latest name", dietary: "Vegetarian", notes: "Existing note", tableId: "table-3", seatNumber: 4 }
+          : guest),
+      }));
+    });
+    approve();
+    act(() => save("synthetic-1", { rsvp: "Confirmed" }));
+    expect(view.result.current.layout.guestList[0]).toMatchObject({
+      name: "Latest name", dietary: "Vegetarian", notes: "Existing note", tableId: "table-3", seatNumber: 4, rsvp: "Confirmed",
+    });
+    await writer.confirm(0);
+    const change = writer.requests[1].operation.changes[0];
+    expect(change.before).toMatchObject({ name: "Latest name", notes: "Existing note", seatNumber: 4, rsvp: "Pending" });
+    expect(change.after).toMatchObject({ name: "Latest name", notes: "Existing note", seatNumber: 4, rsvp: "Confirmed" });
+    await writer.confirm(1);
+    expect(writer.snapshot().layout.guestList[0].name).toBe("Latest name");
+  });
+
+  it("retains newer notes and status while earlier note saves acknowledge", async () => {
+    const writer = connection(), view = mount(writer);
+    act(() => {
+      view.result.current.saveGuestRsvp("synthetic-1", { notes: "First note" });
+      view.result.current.saveGuestRsvp("synthetic-1", { notes: "Newest note" });
+      view.result.current.saveGuestRsvp("synthetic-1", { rsvp: "Confirmed" });
+    });
+    expect(writer.requests).toHaveLength(1);
+    writer.remote(layout => ({
+      ...layout, guestList: layout.guestList.map(guest => guest.id === "synthetic-1" ? { ...guest, name: "Remote name" } : guest),
+    }));
+    await writer.confirm(0);
+    expect(view.result.current.layout.guestList[0]).toMatchObject({ notes: "Newest note", rsvp: "Confirmed", name: "Remote name" });
+    expect(writer.requests[1].operation.changes[0].before).toMatchObject({ notes: "First note" });
+    await writer.confirm(1);
+    expect(view.result.current.layout.guestList[0]).toMatchObject({ notes: "Newest note", rsvp: "Confirmed" });
+    await writer.confirm(2);
+    expect(writer.snapshot().layout.guestList[0]).toMatchObject({ notes: "Newest note", rsvp: "Confirmed", name: "Remote name" });
+    expect(view.result.current.pending).toBe(false);
+  });
+
+  it("preserves independent status changes when a note conflicts", async () => {
+    const writer = connection(), view = mount(writer);
+    act(() => {
+      view.result.current.saveGuestRsvp("synthetic-1", { notes: "First local note" });
+      view.result.current.saveGuestRsvp("synthetic-1", { notes: "Later local note" });
+      view.result.current.saveGuestRsvp("synthetic-1", { rsvp: "Confirmed" });
+    });
+    writer.remote(layout => ({
+      ...layout, guestList: layout.guestList.map(guest => guest.id === "synthetic-1" ? { ...guest, notes: "Remote note" } : guest),
+    }));
+    await writer.reject(0, new SheetSaveError("Note changed elsewhere", 409, writer.snapshot()));
+    expect(view.result.current.layout.guestList[0]).toMatchObject({ notes: "Remote note", rsvp: "Confirmed" });
+    expect(view.result.current.syncError).toContain("not saved");
+    expect(view.result.current.canUndo).toBe(false);
+    expect(writer.requests).toHaveLength(2);
+    await writer.confirm(1);
+    expect(writer.snapshot().layout.guestList[0]).toMatchObject({ notes: "Remote note", rsvp: "Confirmed" });
+  });
+
+  it("recovers an autosaved note and later status after a lost acknowledgement", async () => {
+    const writer = connection(), first = mount(writer);
+    act(() => {
+      first.result.current.saveGuestRsvp("synthetic-1", { notes: "Keep this note" });
+      first.result.current.saveGuestRsvp("synthetic-1", { rsvp: "Confirmed" });
+    });
+    writer.apply(0);
+    const operation = writer.requests[0].operation;
+    first.unmount();
+    const recovered = mount(writer);
+    expect(writer.requests[1].operation).toEqual(operation);
+    expect(() => recovered.result.current.saveGuestRsvp("synthetic-1", { notes: "Too early" })).toThrow(/previous session/);
+    await writer.confirm(1);
+    expect(recovered.result.current.layout.guestList[0]).toMatchObject({ notes: "Keep this note", rsvp: "Confirmed" });
+    await writer.confirm(2);
+    expect(recovered.result.current.pending).toBe(false);
+    expect(writer.snapshot().layout.guestList[0]).toMatchObject({ notes: "Keep this note", rsvp: "Confirmed" });
+    expect(localStorage.getItem(queueKey)).toBeNull();
+  });
+
+  it("throws synchronously while disconnected or reviewing an unrelated change", () => {
+    const disconnected = renderHook(() => useStudio(), { wrapper: StudioProvider });
+    expect(() => disconnected.result.current.saveGuestRsvp("synthetic-1", { notes: "Wait" })).toThrow(/sheet connection/);
+    disconnected.unmount();
+    const writer = connection(), view = mount(writer);
+    act(() => view.result.current.commit("Move", layout => ({ ...layout, items: layout.items.map(item => item.id === "table-1" ? { ...item, x: 3 } : item) })));
+    expect(() => view.result.current.saveGuestRsvp("synthetic-1", { notes: "Wait" })).toThrow(/review/);
+    expect(writer.requests).toHaveLength(0);
+    expect(view.result.current.layout.guestList[0].notes).toBe("");
+    expect(localStorage.getItem(queueKey)).toBeNull();
+  });
+
+  it("rejects missing guests, invalid values and fields outside RSVP or notes", () => {
+    const writer = connection(), view = mount(writer), before = view.result.current.layout;
+    expect(() => view.result.current.saveGuestRsvp("missing-guest", { notes: "No guest" })).toThrow(/guest no longer exists/);
+    for (const patch of [
+      { tableId: "table-3" }, { rsvp: "Unexpected" }, { notes: "x".repeat(4001) },
+      { notes: 123 }, { rsvp: undefined }, { notes: undefined }, null, [],
+    ]) {
+      expect(() => view.result.current.saveGuestRsvp("synthetic-1", patch as never)).toThrow();
+    }
+    expect(view.result.current.layout).toBe(before);
+    expect(writer.requests).toHaveLength(0);
+    expect(view.result.current.canUndo).toBe(false);
+    expect(localStorage.getItem(queueKey)).toBeNull();
+  });
+
+  it("retains a rejected note draft after the RSVP editor closes", async () => {
+    const writer = connection(), view = mount(writer), notes = "Call again tomorrow  ";
+    act(() => {
+      view.result.current.setModal({ type: "rsvp", id: "synthetic-1" });
+      view.result.current.saveGuestRsvp("synthetic-1", { notes });
+      view.result.current.setModal(null);
+    });
+    expect(localStorage.getItem(noteDraftKey("synthetic-1"))).toBe(notes);
+    writer.remote(layout => ({
+      ...layout, guestList: layout.guestList.map(guest => guest.id === "synthetic-1" ? { ...guest, notes: "Changed elsewhere" } : guest),
+    }));
+    await writer.reject(0, new SheetSaveError("Note changed elsewhere", 409, writer.snapshot()));
+    expect(view.result.current.modal).toBeNull();
+    expect(view.result.current.pending).toBe(false);
+    expect(localStorage.getItem(queueKey)).toBeNull();
+    expect(localStorage.getItem(noteDraftKey("synthetic-1"))).toBe(notes);
+  });
+
+  it("clears only the matching note draft after its successful acknowledgement", async () => {
+    const writer = connection(), view = mount(writer);
+    act(() => {
+      view.result.current.saveGuestRsvp("synthetic-1", { notes: "  Saved first note  " });
+      view.result.current.saveGuestRsvp("synthetic-2", { notes: "Second note" });
+    });
+    expect(localStorage.getItem(noteDraftKey("synthetic-1"))).toBe("  Saved first note  ");
+    expect(localStorage.getItem(noteDraftKey("synthetic-2"))).toBe("Second note");
+    await writer.confirm(0);
+    expect(localStorage.getItem(noteDraftKey("synthetic-1"))).toBeNull();
+    expect(localStorage.getItem(noteDraftKey("synthetic-2"))).toBe("Second note");
+    await writer.confirm(1);
+    expect(localStorage.getItem(noteDraftKey("synthetic-2"))).toBeNull();
+  });
+
+  it("preserves a newer unsent draft when an earlier note save acknowledges", async () => {
+    const writer = connection(), view = mount(writer);
+    act(() => view.result.current.saveGuestRsvp("synthetic-1", { notes: "Submitted note" }));
+    // The popup records each keystroke before its debounce queues another save.
+    localStorage.setItem(noteDraftKey("synthetic-1"), "Newer typing still in the editor ");
+    await writer.confirm(0);
+    expect(view.result.current.pending).toBe(false);
+    expect(writer.snapshot().layout.guestList[0].notes).toBe("Submitted note");
+    expect(localStorage.getItem(noteDraftKey("synthetic-1"))).toBe("Newer typing still in the editor ");
+  });
+
+  it("does not overwrite a recovered draft for unchanged notes or a status-only save", async () => {
+    const writer = connection(), view = mount(writer), draft = "Recovered note needing review";
+    localStorage.setItem(noteDraftKey("synthetic-1"), draft);
+    act(() => {
+      view.result.current.saveGuestRsvp("synthetic-1", {});
+      view.result.current.saveGuestRsvp("synthetic-1", { notes: "   " });
+      view.result.current.saveGuestRsvp("synthetic-1", { rsvp: "Confirmed", notes: "" });
+    });
+    expect(writer.requests).toHaveLength(1);
+    expect(localStorage.getItem(noteDraftKey("synthetic-1"))).toBe(draft);
+    await writer.confirm(0);
+    expect(localStorage.getItem(noteDraftKey("synthetic-1"))).toBe(draft);
   });
 });
 

@@ -1,0 +1,51 @@
+/* Soft RSVP colors are shared by the name labels and the quick-edit buttons. */
+.studio-root [data-rsvp],.studio-modal [data-rsvp]{--rsvp-bg:#fffef5;--rsvp-border:#9aac8b;--rsvp-text:#35513c}
+.studio-root [data-rsvp=Confirmed],.studio-modal [data-rsvp=Confirmed]{--rsvp-bg:#e0eddf;--rsvp-border:#8eac85;--rsvp-text:#2b593b}
+.studio-root [data-rsvp=Maybe],.studio-modal [data-rsvp=Maybe]{--rsvp-bg:#fff1c8;--rsvp-border:#cbb36c;--rsvp-text:#705817}
+.studio-root [data-rsvp=Declined],.studio-modal [data-rsvp=Declined]{--rsvp-bg:#f8dfd9;--rsvp-border:#cc9a8e;--rsvp-text:#8b4035}
+.studio-root .studio-rsvp-name[data-rsvp],.studio-modal .studio-rsvp-name[data-rsvp],.studio-root .studio-seat-name-label[data-rsvp]{background:var(--rsvp-bg)!important;border:1px solid var(--rsvp-border)!important;color:var(--rsvp-text)!important}
+.studio-roster-row .studio-rsvp-name{padding:8px 10px!important;border-radius:8px}
+.studio-rsvp-name small{color:inherit;opacity:.85}
+.studio-modal .studio-rsvp-name{border-radius:7px;padding:7px 9px!important;min-height:44px}
+.studio-seat-row>.studio-seat-number{flex:0 0 36px!important;justify-content:center;min-height:44px;font-weight:600}
+.studio-modal .studio-current-name{display:block;width:100%;text-align:left}
+.studio-table-confirmation{display:inline-block;font-size:11px;font-weight:600;line-height:1.4;color:#315743;white-space:nowrap;font-variant-numeric:tabular-nums}
+.studio-table-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.studio-table-grid .studio-table-confirmation{display:block;font-size:9px;margin-top:3px}
+.studio-table-number .studio-table-confirmation{display:block;font-size:9px;margin-top:3px}
+.studio-modal.studio-rsvp-modal{width:min(440px,94vw);margin:auto;border-radius:20px}
+.studio-rsvp-modal>header{padding:21px 22px 17px;align-items:flex-start}
+.studio-rsvp-modal>header h2{font-family:Arial,sans-serif;font-size:21px;font-weight:500;letter-spacing:-.3px;line-height:1.5;overflow-wrap:anywhere}
+.studio-rsvp-modal>header>button{min-height:44px;min-width:44px;margin:-8px -10px -8px 0;flex-shrink:0}
+.studio-rsvp-modal .studio-modal-body{padding:18px 22px 22px}
+.studio-rsvp-context{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;color:#687964;font-size:12px;margin-bottom:21px}
+.studio-rsvp-context .studio-table-confirmation{background:#eaf0e3;padding:5px 9px;border-radius:30px}
+.studio-rsvp-modal .studio-rsvp-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-bottom:22px}
+.studio-rsvp-options legend{padding:0;margin-bottom:9px;color:#65765f;font-size:12px}
+.studio-rsvp-modal .studio-rsvp-options button{display:flex;align-items:center;gap:9px;min-height:76px;padding:13px 11px;text-align:left;font-size:13px;line-height:1.6;border-radius:12px;background:var(--rsvp-bg);border:1px solid var(--rsvp-border);color:var(--rsvp-text);position:relative;touch-action:manipulation}
+.studio-rsvp-modal .studio-rsvp-options button[aria-pressed=true]{box-shadow:inset 0 0 0 1.5px var(--rsvp-text)}
+.studio-rsvp-dot{width:9px;height:9px;border-radius:50%;background:var(--rsvp-text);flex-shrink:0}
+[data-rsvp=Pending] .studio-rsvp-dot{background:white;border:1px solid #9aac8b}
+.studio-rsvp-check{margin-left:auto;flex-shrink:0;width:12px;font-weight:700}
+.studio-rsvp-modal .studio-rsvp-note{font-size:12px;margin-bottom:7px;color:#65765f}
+.studio-rsvp-modal textarea{resize:vertical;min-height:94px;font-size:16px;line-height:1.6;padding:10px 12px;border-radius:10px}
+.studio-rsvp-modal textarea::placeholder{font-size:13px;color:#8b967f}
+.studio-rsvp-save{display:flex;align-items:center;gap:6px;margin-top:9px;font-size:11px;min-height:20px;color:#657b5b}
+.studio-rsvp-save[data-error=true]{color:#8b4035}
+.studio-rsvp-error button{min-height:44px}
+.studio-rsvp-error{display:flex;flex-wrap:wrap;gap:8px}
+.studio-rsvp-error p{width:100%;margin:0 0 4px}
+.studio-rsvp-latest{white-space:pre-wrap;overflow-wrap:anywhere;max-height:120px;overflow:auto;font-size:12px;color:#65765f}
+.studio-rsvp-modal footer{justify-content:space-between;margin-top:17px;padding-top:14px;gap:10px}
+.studio-rsvp-modal footer button{min-height:44px;font-size:12px;flex:1;background:transparent}
+@media(max-width:760px){
+  .studio-modal.studio-rsvp-modal{width:100%;max-width:100%;max-height:90dvh;max-height:90svh;margin:auto 0 0;border-radius:22px 22px 0 0;border-bottom:0}
+  .studio-rsvp-modal .studio-modal-body{padding-bottom:max(20px,env(safe-area-inset-bottom))}
+  .studio-rsvp-modal .studio-rsvp-options button{min-height:80px;font-size:14px}
+  .studio-table-grid .studio-table-confirmation{font-size:10px}
+}
+@media(max-width:360px){
+  .studio-rsvp-modal>header{padding-left:16px;padding-right:16px}
+  .studio-rsvp-modal .studio-modal-body{padding-left:16px;padding-right:16px}
+  .studio-rsvp-modal .studio-rsvp-options button{gap:6px;font-size:13px;padding:10px 8px}
+}
