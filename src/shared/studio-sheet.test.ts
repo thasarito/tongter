@@ -11,6 +11,23 @@ function fixture(){
 }
 describe("authoritative studio sheet decoding",()=>{
   it("uses current guest seats and preserves gaps, unassigned records, names and historical fields",()=>{const {layout}=layoutFromStudioRanges(fixture());expect(layout.guestList).toHaveLength(3);expect(layout.guestList.map(g=>g.seatNumber)).toEqual([3,9,null]);expect(layout.guestList[0].sourceSeatNumber).toBe(24);expect(layout.guestList[2].reserve).toBe(true);expect(layout.items[11].guests[0]).toBe("");expect(layout.items[11].guests[2]).toBe("Synthetic A");expect(layout.items[11].guests[8]).toBe("Synthetic B");expect(layout.items[11].x).toBe(-8.4);});
+  it.each(["", " \t "])("loads blank RSVP cells (%j) as Pending without losing guests or seats",raw=>{
+    const ranges=fixture(),column=STUDIO_GUEST_COLUMNS.indexOf("rsvp");
+    ranges[1].values[1][column]=raw;
+    ranges[1].values[3][column]=raw;
+    const {layout}=layoutFromStudioRanges(ranges);
+    expect(layout.guestList).toHaveLength(3);
+    expect(layout.guestList[0]).toMatchObject({rsvp:"Pending",tableId:"table-12",seatNumber:3});
+    expect(layout.guestList[2]).toMatchObject({rsvp:"Pending",reserve:true,tableId:"",seatNumber:null});
+  });
+  it.each(["Pending", "Confirmed", "Maybe", "Declined"])("preserves explicit %s RSVP values",rsvp=>{
+    const ranges=fixture();ranges[1].values[1][STUDIO_GUEST_COLUMNS.indexOf("rsvp")]=rsvp;
+    expect(layoutFromStudioRanges(ranges).layout.guestList[0].rsvp).toBe(rsvp);
+  });
+  it("still rejects invalid nonblank RSVP values",()=>{
+    const ranges=fixture();ranges[1].values[1][STUDIO_GUEST_COLUMNS.indexOf("rsvp")]="Attending";
+    expect(()=>layoutFromStudioRanges(ranges)).toThrow(/rsvp/);
+  });
   it("preserves exact decimal coordinate strings and FALSE booleans",()=>{const ranges=fixture();ranges[2].values[2][4]="7.384615384615384";const {layout}=layoutFromStudioRanges(ranges);expect(layout.items[1].x).toBe(7.384615384615384);expect(layout.guestList[0].reserve).toBe(false);});
   it("fails closed while a multi-tab update is in progress",()=>{const ranges=fixture();ranges[0].values[1][1]="writing";expect(()=>layoutFromStudioRanges(ranges)).toThrow(/not complete/);});
   it("rejects partial table/seat edits instead of guessing a seat",()=>{const ranges=fixture();ranges[1].values[1][STUDIO_GUEST_COLUMNS.indexOf("seatNumber")]="";expect(()=>layoutFromStudioRanges(ranges)).toThrow(/both set/);});
