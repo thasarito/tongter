@@ -43,6 +43,8 @@ export function layoutFromStudioRanges(ranges:Values[]):{layout:StudioLayout;sou
   if(meta.get("version")!=="3"||meta.get("units")!=="metres")throw Error("Unsupported studio sheet version or units.");
   const guestList=records(ranges[1],STUDIO_GUEST_COLUMNS,"StudioGuests").map((row,i)=>{
     const out:Record<string,unknown>=Object.fromEntries(STUDIO_GUEST_COLUMNS.map(k=>[k,row[k]]));
+    // Empty Sheets cells mean no response; let the guest schema apply Pending.
+    if(!row.rsvp.trim())delete out.rsvp;
     for(const k of ["reserve","important","vip"])out[k]=flag(row[k],`StudioGuests row ${i+2}, ${k}`);
     for(const k of ["seatNumber","sourceSeatNumber","unmappedSeatNumber"])out[k]=numeric(row[k],`StudioGuests row ${i+2}, ${k}`,true);
     if(Boolean(row.tableId)!==(out.seatNumber!==null))throw Error(`StudioGuests row ${i+2}: current table and seat must be both set or both blank.`);

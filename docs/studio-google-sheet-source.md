@@ -2,6 +2,8 @@
 
 `/admin/studio` loads StudioMeta, StudioGuests and StudioObjects through the authenticated, no-store `/api/admin/studio/layout` endpoint. The roster is authoritative for exact seat numbers; cached object guest-name arrays are ignored. Historic source placements stay historic.
 
+Blank or whitespace-only RSVP cells in StudioGuests load as `Pending`, using the guest schema's default. Nonblank values must still be `Pending`, `Confirmed`, `Maybe` or `Declined`; invalid statuses and seating conflicts still reject the layout. This normalization is read-only and does not write a default back to the sheet.
+
 ## Automatic saving
 
 Completed edits, including drag/drop, seat swaps, guest details and furniture moves, produce one guarded operation after the gesture ends. Pointer movement never writes cells. The UI updates immediately and shows the number of pending changes. Further edits, including undo/redo, stay available while an ordered queue sends one operation at a time. An acknowledgement removes only the confirmed head and reapplies the current pending tail over the returned sheet snapshot; it never replaces newer local changes with an older response. Ordinary acknowledgements keep document identity/revision unchanged so they cannot cancel the next active drag. An unrelated layout refresh also leaves an in-progress table drag intact; a change to the dragged object itself cancels it safely. There is no JSON file import/export or stale-local-draft startup fallback. Guest CSV preview/import, CSV export and printable/visual exports remain.
